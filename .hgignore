@@ -1,0 +1,6 @@
+syntax: glob
+*.png
+*.pic
+test/testscore*
+test/test.rad
+test/test.oct

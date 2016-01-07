@@ -5,7 +5,10 @@ import shelve
 import math
 import os
 import copy
-
+import multiprocessing
+import sys
+import os.path
+import signal
 
 
 class Genotype:
@@ -103,6 +106,7 @@ class Individual:
 	def __init__(self):
 		self.genotype = Genotype()
 		self._phenotype = None
+		self._phenotype_ab = None
 		self._fitness = None
 
 
@@ -110,6 +114,7 @@ class Individual:
 		self.genotype.randomize()
 		# Phenotype is now invalid and must be regenerated
 		self._phenotype = None
+		self._phenotype_ab = None
 		self._fitness = None
 
 
@@ -117,6 +122,7 @@ class Individual:
 		self.genotype.mutate()
 		# Phenotype is now invalid and must be regenerated
 		self._phenotype = None
+		self._phenotype_ab = None
 		self._fitness = None
 
 
@@ -124,16 +130,17 @@ class Individual:
 		self.genotype.mutate_unsafe()
 		# Phenotype is now invalid and must be regenerated
 		self._phenotype = None
+		self._phenotype_ab = None
 		self._fitness = None
 
 
-	def getPhenotype(self):
-		self.measurePhenotype()
+	def getPhenotype(self, ab):
+		self.measurePhenotype(ab)
 		return self._phenotype
 
 
-	def measurePhenotype(self):
-		if self._phenotype != None:
+	def measurePhenotype(self, ab):
+		if self._phenotype != None and self._phenotype_ab == ab:
 			return
 
 		rad_file = tempfile.NamedTemporaryFile(delete = False)
@@ -142,7 +149,7 @@ class Individual:
 
 		m4_param_defs = self.genotype.makeM4Defstring()
 
-		rad_data = subprocess.check_output(['m4'] + m4_param_defs + ['design.rad.m4'])
+		rad_data = subprocess.check_output(['m4'] + m4_param_defs + ['design1.rad.m4'])
 		rad_file.write(rad_data)
 		rad_file.close()
 
@@ -150,8 +157,8 @@ class Individual:
 		oct_file.write(oct_tree)
 		oct_file.close()
 
-		grid_xdim = 20
-		grid_zdim = 20
+		grid_xdim = 8
+		grid_zdim = 8
 
 		for x in range(grid_xdim):
 			for z in range(grid_zdim):
@@ -160,7 +167,7 @@ class Individual:
 					9 + (325-1)*(z/(grid_zdim-1)-0.5)*2))
 		grid_file.seek(0)
 
-		radiance_triplets = subprocess.check_output(['rtrace', '-ab', '8', '-h', oct_file.name], stdin = grid_file)
+		radiance_triplets = subprocess.check_output(['rtrace', '-ab', `ab`, '-h', oct_file.name], stdin = grid_file)
 		grid_file.close()
 
 		radiance_values = [float(line.split('\t')[0]) for line in radiance_triplets.splitlines()]
@@ -170,17 +177,18 @@ class Individual:
 		os.unlink(grid_file.name)
 
 		self._phenotype = radiance_values
+		self._phenotype_ab = ab
 
 
-	def getFitness(self):
-		self.calculateFitness()
+	def getFitness(self, ab):
+		self.calculateFitness(ab)
 		return self._fitness
 
 
-	def calculateFitness(self):
-		if self._fitness != None:
+	def calculateFitness(self, ab):
+		if self._fitness != None and self._phenotype_ab == ab:
 			return
-		radiance_values = self.getPhenotype()
+		radiance_values = self.getPhenotype(ab)
 
 		params = self.genotype.gt
 		bb_volume = (params['a'] + params['c'] + params['e'] + params['f'] + 60.0) * (245 + 600 + params['b'] + 60.0) * (990 + 60.0) / 1000
@@ -230,8 +238,8 @@ class Population:
 			i.randomize()
 
 
-	def getScaledFitness(self):
-		raw_fitness = [i.getFitness() for i in self.individuals]
+	def getScaledFitness(self, ab):
+		raw_fitness = [i.getFitness(ab) for i in self.individuals]
 		min_fitness = min(raw_fitness)
 		max_fitness = max(raw_fitness)
 		range_fitness = max_fitness - min_fitness
@@ -241,16 +249,45 @@ class Population:
 		return scaled_fitness
 
 
-	def doGeneration(self, keep_best_frac):
-		indiv_fitness = zip(self.individuals, self.getScaledFitness())
+	def doParallelPhenotypeComputation(self, ab):
+		# Evaluate individual fitness.  Do this with multiprocessing, for speed.
+		# Unfortunately, the class really wasn't well thought-out, and 
+		# multiprocessing really needs to be shoehorned into it.  Do as follows:
+		#   Multiprocess: pheno = [i.getPhenotype() for i in self.individuals]
+		#   for p, i in zip(pheno, self.individuals):
+		#      i._phenotype = p
+		# Then scaled fitness can be calculated using Population.getScaledFitness,
+		# as the called individual.calculateFitness is fast.
+		# print('  SMP phenotype precomputation...')
+
+		pool = multiprocessing.Pool(8, getPhenotypeWorkerInit)
+
+		pheno = pool.map(getPhenotypeWorker, zip(self.individuals, [ab] * len(self.individuals)))
+		for p, i in zip(pheno, self.individuals):
+			i._phenotype = p
+			i._phenotype_ab = ab
+
+
+	def doGeneration(self, keep_best_frac, ab):
+		# Perform one generation of evaluation, selection, mating, and mutation.
+
+		# Evaluation: calculate fitness, taking advantage of the precomputed phenotypes
+		# print('  Fitness evaluation...')
+		indiv_fitness = zip(self.individuals, self.getScaledFitness(ab))
 		indiv_fitness_sorted = sorted(indiv_fitness, key = lambda x: -x[1])
 
+		# Selection: Determine how many of the highest fitness individuals to keep (m)
+		# print('  Selection...')
 		n = len(self.individuals)
 		m = max(2, int(n * keep_best_frac))
 
+		# Reassign these top m individuals to self.individuals
 		best_m_of_generation = [indiv_fitness[i][0] for i in range(m)]
-
 		self.individuals = best_m_of_generation
+
+		# Mating: Using the top m individuals as parents, generate n-m offpring 
+		# to bring the population size back up to n.
+		# print('  Mating...')
 		for i in range(n - m):
 			first_run = True
 			child = None
@@ -264,6 +301,14 @@ class Population:
 
 
 
+def getPhenotypeWorkerInit():
+    signal.signal(signal.SIGINT, signal.SIG_IGN)
+
+def getPhenotypeWorker(task):
+	return task[0].getPhenotype(ab = task[1])
+
+
+
 def crossover(individual1, individual2):
 	child = Individual()
 	for field in Genotype._FIELDS.keys():
@@ -274,31 +319,61 @@ def crossover(individual1, individual2):
 	return child
 
 
-def doOptim(population_size, keep_best_frac, n_iters, shelf):
-	if len(shelf) == 0:
+
+def doOptim(population_size, schedule, shelf):
+	if not 'generations' in shelf or len(shelf['generations']) == 0:
+		shelf['generations'] = []
 		start_gen = 0
 		print 'Starting new optimization'
 		population = Population(population_size)
 		population.randomize()
 		print 'Generated population of size {}'.format(population_size)
 	else:
-		start_gen = max([int(x) for x in shelf.keys()])
+		start_gen = len(shelf['generations'])
 		print 'Continuing saved optimization from generation {}'.format(start_gen)
-		population = shelf[`start_gen`]
+		population = shelf['generations'][start_gen]
 	
-	for i in range(start_gen, n_iters + 1):
-		shelf[`i`] = population
+	n_iters = len(schedule)
 
-		population_raw_fitness = [ind.getFitness() for ind in population.individuals]
+	for i in range(start_gen, n_iters + 1):
+		population.doParallelPhenotypeComputation(ab = schedule[i][0])
+		population_raw_fitness = [ind.getFitness(ab = schedule[i][0]) for ind in population.individuals]
+
 		print('Generation {}: best fitness {}, average fitness {}'.format(i, max(population_raw_fitness), sum(population_raw_fitness) / len(population)))
 
+		shelf['generations'].append(population)
+		shelf.sync()
+
 		new_population = copy.deepcopy(population)
-		new_population.doGeneration(keep_best_frac)
+		new_population.doGeneration(keep_best_frac = schedule[i][1], ab = schedule[i][0])
 		population = new_population
 
 	return population
 
 
 if __name__ == '__main__':
-	shelf = shelve.open('optim.shl')
-	doOptim(100, 0.2, 200, shelf)
+	if len(sys.argv) == 2:
+		if not os.path.isfile(sys.argv[1]):
+			sys.exit('Error: supplied shelf {} can not be found.'.format(sys.argv[1]))
+		shelf = shelve.open(sys.argv[1])
+		if not 'params' in shelf:
+			sys.exit('Error: supplied shelf {} does not contain parameters field.'.format(sys.argv[1]))
+		params = shelf['params']
+		schedule = params['schedule']
+	elif len(sys.argv) > 2 and len(sys.argv) % 2 == 0:
+		shelf = shelve.open(sys.argv[1])
+		if 'params' in shelf:
+			params = shelf['params']
+		else:
+			params = {'popsize': int(sys.argv[2]), 'keepfrac': float(sys.argv[3]), 'schedule': []}
+
+		new_schedule = []
+		for i in range(4, len(sys.argv), 2):
+			new_schedule += zip([int(sys.argv[i+1])]*int(sys.argv[i]), [params['keepfrac']]*int(sys.argv[i]))
+		params['schedule'] = params['schedule'] + new_schedule
+	else:
+		sys.exit('Usage: optim.py <shelf> [<popsize> <keepfrac> <niter1> <ab1> [<niter2> <ab2> [<niter3> <ab3> [...]]] ]')
+
+	shelf['params'] = params
+	shelf.sync()
+	doOptim(params['popsize'], params['schedule'], shelf)

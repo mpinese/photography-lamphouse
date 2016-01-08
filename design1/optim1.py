@@ -275,7 +275,7 @@ class Population:
 		# as the called individual.calculateFitness is fast.
 		# print('  SMP phenotype precomputation...')
 
-		pool = multiprocessing.Pool(8, getPhenotypeWorkerInit)
+		pool = multiprocessing.Pool(6, getPhenotypeWorkerInit)
 
 		pheno = pool.map(getPhenotypeWorker, zip(self.individuals, [ab] * len(self.individuals)))
 		for p, i in zip(pheno, self.individuals):
@@ -410,7 +410,19 @@ def doOptim(population_size, schedule, shelf):
 		population_raw_fitness = [ind.getFitness(ab = schedule[i][0]) for ind in population.individuals]
 		population_diversity = population.calcDiversity()
 
-		print('Generation {}: f_best {:.2e}, f_av {:.2e}, Sigma_cv {:.2e}'.format(i, max(population_raw_fitness), sum(population_raw_fitness) / len(population), sum((d[1][1] for d in population_diversity))))
+		best_fitness = None
+		best_indiv = None
+		for j in population.individuals:
+			if best_fitness == None or best_fitness < j.getFitness(ab = schedule[i][0]):
+				best_fitness = j.getFitness(ab = schedule[i][0])
+				best_indiv = j
+
+		print('Generation {}: f_best {:.2e}, f_av {:.2e}, Sigma_cv {:.2e}, gt_best: {}'.format(
+			i, 
+			max(population_raw_fitness), 
+			sum(population_raw_fitness) / len(population), 
+			sum((d[1][1] for d in population_diversity)),
+			str(best_indiv.genotype)))
 
 		shelf[`i`] = population
 
@@ -429,7 +441,7 @@ if __name__ == '__main__':
 		if not os.path.isfile(sys.argv[1]):
 			sys.exit('Error: supplied shelf {} can not be found.'.format(sys.argv[1]))
 		shelf = shelve.open(sys.argv[1])
-		if not 'params' in shelf:
+		if not 'params' in shelf.keys():
 			sys.exit('Error: supplied shelf {} does not contain parameters field.'.format(sys.argv[1]))
 		params = shelf['params']
 		schedule = params['schedule']

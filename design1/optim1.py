@@ -34,6 +34,12 @@ class Genotype:
 				self.gt[f] = 'false'
 
 
+	def __repr__(self):
+		keys = self.gt.keys()
+		keys.sort()
+		return '|'.join((`self.gt[k]` for k in keys))
+
+
 	def makeM4Defstring(self):
 		return ['-D{}={}'.format(field, self.gt[field]) for field in Genotype._FIELDS.keys()]
 
@@ -108,6 +114,10 @@ class Individual:
 		self._phenotype = None
 		self._phenotype_ab = None
 		self._fitness = None
+
+
+	def __repr__(self):
+		return str(self.genotype)
 
 
 	def randomize(self):
@@ -188,6 +198,7 @@ class Individual:
 	def calculateFitness(self, ab):
 		if self._fitness != None and self._phenotype_ab == ab:
 			return
+
 		radiance_values = self.getPhenotype(ab)
 
 		params = self.genotype.gt
@@ -238,8 +249,12 @@ class Population:
 			i.randomize()
 
 
+	def getRawFitness(self, ab):
+		return [i.getFitness(ab) for i in self.individuals]
+
+
 	def getScaledFitness(self, ab):
-		raw_fitness = [i.getFitness(ab) for i in self.individuals]
+		raw_fitness = self.getRawFitness(ab)
 		min_fitness = min(raw_fitness)
 		max_fitness = max(raw_fitness)
 		range_fitness = max_fitness - min_fitness
@@ -268,13 +283,29 @@ class Population:
 			i._phenotype_ab = ab
 
 
+	def isGenotypeNew(self, indiv):
+		# Returns true if indiv's genotype is *not* present within self.individuals,
+		# else false.  Relies on Genotype.__repr__ being a complete and unique representation
+		# of the genotype.
+		for test_i in self.individuals:
+			if str(test_i) == str(indiv):
+				return False
+		return True
+
+
 	def doGeneration(self, keep_best_frac, ab):
 		# Perform one generation of evaluation, selection, mating, and mutation.
 
 		# Evaluation: calculate fitness, taking advantage of the precomputed phenotypes
 		# print('  Fitness evaluation...')
-		indiv_fitness = zip(self.individuals, self.getScaledFitness(ab))
+		indiv_fitness = zip(self.individuals, self.getRawFitness(ab))
 		indiv_fitness_sorted = sorted(indiv_fitness, key = lambda x: -x[1])
+		
+		# print 'GENERATION:'
+
+		# print '  Before selection:'
+		# for i in indiv_fitness_sorted:
+		# 	print '    ', i[0], '\t', i[1]
 
 		# Selection: Determine how many of the highest fitness individuals to keep (m)
 		# print('  Selection...')
@@ -282,23 +313,55 @@ class Population:
 		m = max(2, int(n * keep_best_frac))
 
 		# Reassign these top m individuals to self.individuals
-		best_m_of_generation = [indiv_fitness[i][0] for i in range(m)]
+		best_m_of_generation = [indiv_fitness_sorted[i][0] for i in range(m)]
 		self.individuals = best_m_of_generation
+
+		# print 'After selection:'
+		# for i in best_m_of_generation:
+		# 	print '    ', i, '\t', i.getFitness(ab)
 
 		# Mating: Using the top m individuals as parents, generate n-m offpring 
 		# to bring the population size back up to n.
 		# print('  Mating...')
+		# print 'New children:'
 		for i in range(n - m):
-			first_run = True
 			child = None
-			while first_run == True or child.genotype.checkConstraints() == False:
-				first_run = False
+			while child == None or child.genotype.checkConstraints() == False or self.isGenotypeNew(child) == False:
 				parents = random.sample(self.individuals[:m], 2)
 				child = crossover(parents[0], parents[1])
 				child.mutate_unsafe()
 
+			# print '    ', child, '\t', child.getFitness(ab)
 			self.individuals.append(child)
 
+
+	def calcDiversity(self):
+		if len(self.individuals) == 0:
+			return None
+
+		loci = self.individuals[0].genotype.gt.keys()
+		n_loci = len(loci)
+		n_individuals = len(self.individuals)
+
+		locus_cv = []
+		locus_mean = []
+		for locus in loci:
+			if Genotype._FIELDS[locus] == 'int':
+				locus_data = [i.genotype.gt[locus] for i in self.individuals]
+			elif Genotype._FIELDS[locus] == 'bool':
+				locus_data = [0] * n_individuals
+				for i in range(n_individuals):
+					if self.individuals[i].genotype.gt[locus] == 'true':
+						locus_data[i] = 1
+
+			locus_mean.append(sum(locus_data) * 1.0 / n_individuals)
+			locus_sd = math.sqrt(sum((math.pow(d - locus_mean[-1], 2) for d in locus_data)) / (n_individuals-1))
+			if locus_mean[-1] == 0:
+				locus_cv.append(float('inf'))
+			else:
+				locus_cv.append(locus_sd / locus_mean[-1])
+
+		return zip(loci, zip(locus_mean, locus_cv))
 
 
 def getPhenotypeWorkerInit():
@@ -321,34 +384,44 @@ def crossover(individual1, individual2):
 
 
 def doOptim(population_size, schedule, shelf):
-	if not 'generations' in shelf or len(shelf['generations']) == 0:
-		shelf['generations'] = []
-		start_gen = 0
+	# Get the last generation present in the shelf object
+	last_gen = -1
+	for key in shelf.keys():
+		if key != 'params':
+			last_gen = max(last_gen, int(key))
+
+	# The starting generation is the one immediately following
+	# the last in the file.
+	start_gen = last_gen + 1
+
+	if start_gen == 0:
 		print 'Starting new optimization'
 		population = Population(population_size)
 		population.randomize()
 		print 'Generated population of size {}'.format(population_size)
 	else:
-		start_gen = len(shelf['generations'])
 		print 'Continuing saved optimization from generation {}'.format(start_gen)
-		population = shelf['generations'][start_gen]
+		population = shelf[`last_gen`]
 	
 	n_iters = len(schedule)
 
-	for i in range(start_gen, n_iters + 1):
+	for i in range(start_gen, n_iters):
 		population.doParallelPhenotypeComputation(ab = schedule[i][0])
 		population_raw_fitness = [ind.getFitness(ab = schedule[i][0]) for ind in population.individuals]
+		population_diversity = population.calcDiversity()
 
-		print('Generation {}: best fitness {}, average fitness {}'.format(i, max(population_raw_fitness), sum(population_raw_fitness) / len(population)))
+		print('Generation {}: f_best {:.2e}, f_av {:.2e}, Sigma_cv {:.2e}'.format(i, max(population_raw_fitness), sum(population_raw_fitness) / len(population), sum((d[1][1] for d in population_diversity))))
 
-		shelf['generations'].append(population)
-		shelf.sync()
+		shelf[`i`] = population
 
-		new_population = copy.deepcopy(population)
-		new_population.doGeneration(keep_best_frac = schedule[i][1], ab = schedule[i][0])
-		population = new_population
+		# new_population = copy.deepcopy(population)
+		# new_population.doGeneration(keep_best_frac = schedule[i][1], ab = schedule[i][0])
+		# population = new_population
+
+		population.doGeneration(keep_best_frac = schedule[i][1], ab = schedule[i][0])
 
 	return population
+
 
 
 if __name__ == '__main__':
@@ -375,5 +448,5 @@ if __name__ == '__main__':
 		sys.exit('Usage: optim.py <shelf> [<popsize> <keepfrac> <niter1> <ab1> [<niter2> <ab2> [<niter3> <ab3> [...]]] ]')
 
 	shelf['params'] = params
-	shelf.sync()
 	doOptim(params['popsize'], params['schedule'], shelf)
+

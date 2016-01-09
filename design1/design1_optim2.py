@@ -223,7 +223,7 @@ class Individual:
 		# Subject to this, bb_volume should be as small as possible, and min_radiance should be high.
 		# The scaling factors make bb_volume and min_radiance approximately equal in strength.
 
-		neg_fitness = pow(radiance_inhomogeneity / 0.03, 5) - bb_volume/1.0e9 + min_radiance*1e3
+		neg_fitness = pow(radiance_inhomogeneity / 0.03, 5) + bb_volume/1.0e9 - min_radiance*1e3
 
 		self._fitness = -neg_fitness
 

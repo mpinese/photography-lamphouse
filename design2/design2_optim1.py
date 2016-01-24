@@ -220,10 +220,12 @@ class Individual:
 		# print(pow(radiance_inhomogeneity / 0.03, 5), min_radiance)
 
 		# Objective: Radiance inhomogeneity should be < 0.03
-		# Subject to this, bb_volume should be as small as possible, and min_radiance should be high.
-		# The scaling factors make bb_volume stronger than min_radiance.
+		# Subject to this, min_radiance should be as high as possible.
+		# Later, bb_volume and glass_area may be optimization targets.
 
-		self._fitness = -pow(radiance_inhomogeneity / 0.03, 5) - bb_volume/1.0e12 + min_radiance/2
+		neg_fitness = pow(radiance_inhomogeneity / 0.03, 5) - min_radiance
+
+		self._fitness = -neg_fitness
 
 
 

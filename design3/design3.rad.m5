@@ -1,0 +1,161 @@
+## ./m5 -Da=200 -Db=50 -Dc=50 -Dd=10 -De=20 design3.rad.m5 | oconv - | /usr/lib/radiance/rview -av .01 .01 .01 -vp 52.5 -500 52.5 -vd 0 1 0 /dev/stdin
+
+void light led_light
+0
+0
+3	100	100	100
+
+void light test_light
+0
+0
+3	1000	1000	1000
+
+##test_light sphere test_lamp
+##0
+##0
+##4	52.5	-600	52.5	20
+
+void plastic white_paint
+0
+0
+5	0.9	0.9	0.9
+	0.02 0.08
+
+void plastic green_paint
+0
+0
+5	0.2	0.9	0.2
+	0.02	0.08
+
+void metal al_foil
+0
+0
+5  0.92 0.92 0.92  0.12 0.1
+
+void trans diffuser
+0
+0
+7	0.98	0.98	0.98
+	0.04	0.15
+	0.47	0.01
+
+void dielectric PMMA
+0
+0
+5	0.92	0.92	0.92
+	1.490	0
+
+al_foil polygon top_wall
+0
+0
+12	0	$a	0
+	0	$a	105
+	105	$a	105
+	105	$a	0
+
+##al_foil polygon bottom_wall
+##0
+##0
+##30	0	0	0
+##	105	0	0
+##	105	0	105
+##	0	0	105
+##	0	0	0
+##	20	0	20
+##	20	0	85
+##	85	0	85
+##	85	0	20
+##	20	0	20
+
+al_foil polygon bottom_wall_front
+0
+0
+12	0	0	0
+	105	0	0
+	85	0	20
+	20	0	20
+
+al_foil polygon bottom_wall_rear
+0
+0
+12	0	0	105
+	20	0	85
+	85	0	85
+	105	0	105
+
+al_foil polygon bottom_wall_left
+0
+0
+12	0	0	0
+	20	0	20
+	20	0	85
+	0	0	105
+
+al_foil polygon bottom_wall_right
+0
+0
+12	105	0	0
+	105	0	105
+	85	0	85
+	85	0	20
+
+al_foil polygon left_wall
+0
+0
+12	0	0	0
+	0	0	105
+	0	$a	105
+	0	$a	0
+
+al_foil polygon right_wall
+0
+0
+12	105	0	0
+	105	$a	0
+	105	$a	105
+	105	0	105
+
+al_foil polygon front_wall
+0
+0
+12	0	0	0
+	0	$a	0
+	105	$a	0
+	105	0	0
+
+al_foil polygon back_wall
+0
+0
+12	0	0	105
+	105	0	105
+	105	$a	105
+	0	$a	105
+
+led_light polygon led1
+0
+0
+12	$(e+5)	$(a-1)	$e
+	$(e+5)	$(a-1)	$(e+5)
+	$e	$(a-1)	$(e+5)
+	$e	$(a-1)	$e
+	
+
+#d = 1*$d
+#cyl_dia = 105/d
+#for (i = 1; i <= 1*d; i++) {
+PMMA cylinder c1_$i
+0
+0
+7	$((i-0.5)*cyl_dia)	$(a-b)	0
+	$((i-0.5)*cyl_dia)	$(a-b)	105
+	$(cyl_dia)
+#}
+
+#for (i = 1; i <= 1*d; i++) {
+PMMA cylinder c2_$i
+0
+0
+7	0	$(a-b)	$((i-0.5)*cyl_dia)
+	105	$(a-b)	$((i-0.5)*cyl_dia)
+	$(cyl_dia)
+#}

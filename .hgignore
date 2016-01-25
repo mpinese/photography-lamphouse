@@ -5,3 +5,4 @@ syntax: glob
 *.rad
 test/testscore*
 test/test.oct
+design3/a.awk

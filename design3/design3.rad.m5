@@ -141,6 +141,7 @@ led_light polygon led1
 	
 
 #d = 1*$d
+#if(d > 0) {
 #cyl_dia = 105/d
 #for (i = 1; i <= 1*d; i++) {
 PMMA cylinder c1_$i
@@ -158,4 +159,5 @@ PMMA cylinder c2_$i
 7	0	$(a-b)	$((i-0.5)*cyl_dia)
 	105	$(a-b)	$((i-0.5)*cyl_dia)
 	$(cyl_dia)
+#}
 #}

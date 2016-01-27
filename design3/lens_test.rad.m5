@@ -1,0 +1,76 @@
+##./m5 lens_test.rad.m5 -Da=1 -Db=1 -Dc=0.1 | oconv - | rpict -av 0 0 0 -ab 4 -vtl -vp 0 0 1 -vd 0 0 -1 -vu 0 1 0 -vh 1 -vv 1 /dev/stdin | ximage
+##./m5 lens_test.rad.m5 -Da=2 -Db=2 -Dc=0.15 | oconv - | rpict -av 0 0 0 -ab 8 -vtl -vp 0 0 1 -vd 0 0 -.1 -vu 0 1 0 -vh 1 -vv 0.2 /dev/stdin | ximage
+#a=1*$a
+#b=1*$b
+#c=1*$c
+
+void light light_white
+0
+0
+3	1e6	1e6	1e6
+
+
+void dielectric PMMA_red
+0
+0
+5	1	0	0
+	1.490	0
+
+void dielectric PMMA_green
+0
+0
+5	0	1	0
+	1.490	0
+
+void dielectric PMMA_blue
+0
+0
+5	0	0	1
+	1.490	0
+
+
+void trans diffuser
+0
+0
+7	1	1	1
+	0	0
+	0.07	0
+
+light_white polygon led_white
+0
+0
+12	-0.01	-0.01	$a
+	-0.01	0.01	$a
+	0.01	0.01	$a
+	0.01	-0.01	$a
+
+
+diffuser polygon target
+0
+0
+12	-1000	-1000	$(b*-1)
+	1000	-1000	$(b*-1)
+	1000	1000	$(b*-1)
+	-1000	1000	$(b*-1)
+
+
+PMMA_red cylinder lens_red
+0
+0
+7	$(c*-1)	-1000	0
+	$(c*-1)	1000	0
+	$c
+
+PMMA_green cylinder lens_green
+0
+0
+7	0	-1000	0
+	0	1000	0
+	$c
+
+PMMA_blue cylinder lens_blue
+0
+0
+7	$c	-1000	0
+	$c	1000	0
+	$c

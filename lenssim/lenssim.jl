@@ -70,17 +70,28 @@ end
 # index is the optical index of the current medium of the photon
 type Photon
     ray::Ray
-    history::Array{Segment, 1}
+    history::Array{Point, 1}
+    active::Bool
 end
-Photon(ray::Ray) = Photon(ray, [])
-function draw(cr::Cairo.CairoContext, p::Photon)
-#    Cairo.set_source_rgba(cr, 1, 0, 0, 0.02)
-    Cairo.set_source_rgba(cr, 1, 0, 0, 1)
-    for past_segment in p.history
-        draw(cr, past_segment)
+Photon(ray::Ray) = Photon(ray, [ray.source], true)
+function draw(cr::Cairo.CairoContext, p::Photon, alpha::AbstractFloat)
+    Cairo.set_source_rgba(cr, 1, 0, 0, alpha)
+    segment_start = p.history[1]
+    for past_point in p.history[2:end]
+        draw(cr, Segment(segment_start, past_point - segment_start))
+        segment_start = past_point
     end
-    draw(cr, p.ray)
+
+    # Don't draw still-active photons, as these haven't terminated
+    # yet (they hit the maximum number of bounces and tracing was
+    # stopped), and so the final ray is not necessarily correct.
+    # (It often will appear to pass through objects, as intersections
+    # past the max number of bounces were simply ignored.)
+    if !p.active
+        draw(cr, p.ray)
+    end
 end
+draw(cr::Cairo.CairoContext, p::Photon) = draw(cr, p, 0.02)
 
 BoundaryGeometry = Union{Circle, Segment}
 
@@ -215,8 +226,10 @@ function intersect(r::Ray, c::Circle)
     line_int = intersect(Line(r.source, r.delta), c)
 
     # Keep intersection points i which satisfy
-    # i = source + k*delta for k >= 0
-    filter!(i->(i.p.x - r.source.x) / r.delta.x >= 0, line_int)
+    # i = source + k*delta for k > 0
+    # k > 0 needed or else a photon emitted from a surface 
+    # would immediately intersect with the same surface again.
+    filter!(i->(i.p.x - r.source.x) / r.delta.x > 0, line_int)
 
     return line_int
 end
@@ -226,8 +239,16 @@ function intersect(r::Ray, l::Line)
     line_int = intersect(Line(r.source, r.delta), l)
 
     # Keep intersection points i which satisfy
-    # i = source + k*delta for k >= 0
-    filter!(i->(i.p.x - r.source.x) / r.delta.x >= 0, line_int)
+    # i = r.source + k*r.delta for k > 0
+    # k > 0 needed or else a photon emitted from a surface 
+    # would immediately intersect with the same surface again.
+    # Need only filter on a single axis; choose the
+    # least degenerate one.
+    if abs(r.delta.x) > abs(r.delta.y)
+        filter!(i->((i.p.x - r.source.x) / r.delta.x > 0), line_int)
+    else
+        filter!(i->((i.p.y - r.source.y) / r.delta.y > 0), line_int)
+    end
 
     return line_int
 end
@@ -236,14 +257,26 @@ end
 function intersect(r::Ray, s::Segment)
     line_int = intersect(Line(r.source, r.delta), Line(s.source, s.delta))
 
-    # Some calculus gives an expression for the k that yields the minimum
-    # distance between a point and the line of segment s.  For the intersection 
-    # to lie within the segment, we require 0 <= k <= 1.
-	# mindist_k = -(s.delta.y*s.source.y-s.delta.y*line_int[1].p.y+s.delta.x*s.source.x-s.delta.x*line_int[1].p.x)/(s.delta.y^2+s.delta.x^2)
+    # Keep intersection points i which satisfy
+    # i = r.source + k1*r.delta for k1 > 0, and
+    # i = s.source + k2*s.delta for 0 <= k2 <= 1
+    # k > 0 needed or else a photon emitted from a surface 
+    # would immediately intersect with the same surface again.
+    # Filter on the least degenerate axis
 
-	# TODO: Still buggy!
+    # Ray filtering
+    if abs(r.delta.x) > abs(r.delta.y)
+        filter!(i->((i.p.x - r.source.x) / r.delta.x > 0), line_int)
+    else
+        filter!(i->((i.p.y - r.source.y) / r.delta.y > 0), line_int)
+    end
 
-    filter!(i->(abs(-(s.delta.y*s.source.y-s.delta.y*i.p.y+s.delta.x*s.source.x-s.delta.x*i.p.x)/(s.delta.y^2+s.delta.x^2)) <= 1), line_int)
+    # Segment filtering
+    if abs(s.delta.x) > abs(s.delta.y)
+        filter!(i->((i.p.x - s.source.x) / s.delta.x >= 0 && (i.p.x - s.source.x) / s.delta.x <= 1), line_int)
+    else
+        filter!(i->((i.p.y - s.source.y) / s.delta.y >= 0 && (i.p.y - s.source.y) / s.delta.y <= 1), line_int)
+    end
 
     return line_int
 end
@@ -279,10 +312,10 @@ end
 #   photon is the new photon direction, following interaction
 #   changed is a boolean, true if the photon has interacted with an element, else false
 function interact(photon::Photon, system::System)
-    # If this is a 'stationary' photon (ie it's been absorbed),
-    # then don't bother with all the calculations, and return
-    # it unchanged.
-    if photon.ray.delta.x == 0 && photon.ray.delta.y == 0
+    # If this is an inactive photon (ie it's been absorbed or 
+    # shot off into infinity), then don't bother with all the 
+    # calculations, and return it unchanged.
+    if photon.active == false
         return (photon, false)
     end
 
@@ -304,7 +337,7 @@ function interact(photon::Photon, intelement::Reflector, intposition::Intersecti
     if rand() < intelement.absorbance
         # The ray is absorbed, and terminates here.
         # Represent a terminated photon as a position and zero delta vector
-        return (Photon(Ray(intposition.p, Point(0.0, 0.0)), vcat(photon.history, Segment(photon.ray.source, intposition.p - photon.ray.source))), true)
+        return (Photon(Ray(intposition.p, Point(0.0, 0.0)), vcat(photon.history, intposition.p), false), true)
     end
 
     l = photon.ray.delta / norm(photon.ray.delta)       # Normalised photon direction
@@ -317,9 +350,8 @@ function interact(photon::Photon, intelement::Reflector, intposition::Intersecti
 
     # Reflection vector
     delta_reflect = l + 2*c*n
-    println(l, "\t", n, "\t", c, "\t", delta_reflect)
 
-    return (Photon(Ray(intposition.p, delta_reflect), vcat(photon.history, Segment(photon.ray.source, intposition.p - photon.ray.source))), true)
+    return (Photon(Ray(intposition.p, delta_reflect), vcat(photon.history, intposition.p), true), true)
 end
 
 
@@ -328,7 +360,7 @@ function interact(photon::Photon, intelement::Dielectric, intposition::Intersect
     if rand() < intelement.absorbance
         # The ray is absorbed, and terminates here.
         # Represent a terminated photon as a position and zero delta vector
-        return (Photon(Ray(intposition.p, Point(0.0, 0.0)), vcat(photon.history, Segment(photon.ray.source, intposition.p - photon.ray.source))), true)
+        return (Photon(Ray(intposition.p, Point(0.0, 0.0)), vcat(photon.history, intposition.p), false), true)
     end
 
     l = photon.ray.delta / norm(photon.ray.delta)       # Normalised photon direction
@@ -367,8 +399,9 @@ function interact(photon::Photon, intelement::Dielectric, intposition::Intersect
     if 1 - r^2*(1-c^2) < 0
         # TIRF has occurred.  Create a new entirely reflected
         # photon, and return.
-        return (Photon(Ray(intposition.p, delta_reflect), vcat(photon.history, Segment(photon.ray.source, intposition.p - photon.ray.source))), true)
+        return (Photon(Ray(intposition.p, delta_reflect), vcat(photon.history, intposition.p), true), true)
     end
+    # TODO: check the above
 
     # Refraction vector
     delta_refract = r*l + (r*c - sqrt(1 - (r*(1-c))^2))*n
@@ -377,14 +410,15 @@ function interact(photon::Photon, intelement::Dielectric, intposition::Intersect
     reflectance_s = ((n1*c - n2*sqrt(1 - (r*s)^2)) / (n1*c + n2*sqrt(1 - (r*s)^2)))^2
     reflectance_p = ((n1*sqrt(1 - (r*s)^2) - n2*c) / (n1*sqrt(1 - (r*s)^2) + n2*c))^2
     reflectance_avg = (reflectance_s + reflectance_p) / 2
+    # TODO: Check the above
 
     # Sample to determine the path taken
     if rand() < reflectance_avg
         # Reflection
-        return (Photon(Ray(intposition.p, delta_reflect), vcat(photon.history, Segment(photon.ray.source, intposition.p - photon.ray.source))), true)
+        return (Photon(Ray(intposition.p, delta_reflect), vcat(photon.history, intposition.p), true), true)
     else
         # Refraction
-        return (Photon(Ray(intposition.p, delta_refract), vcat(photon.history, Segment(photon.ray.source, intposition.p - photon.ray.source))), true)
+        return (Photon(Ray(intposition.p, delta_refract), vcat(photon.history, intposition.p), true), true)
     end
 end
 
@@ -422,29 +456,35 @@ end
 
 # Create a new photon and trace it through system until
 # it terminates.  When done, add the photon to system.
-function create_and_trace_photon!(system::System)
+function create_and_trace_photon!(system::System, maxbounces::Integer)
     photon = create_photon(system)
 
-    interacted = true
-    while interacted == true
+    for i in 1:maxbounces
         photon, interacted = interact(photon, system)
+        if interacted == false
+            photon.active = false
+        end
+
+        if photon.active == false
+            break
+        end
     end
 
     push!(system.photons, photon)
 end
 
 
-function create_and_trace_photons!(system::System, n::Integer)
+function create_and_trace_photons!(system::System, n::Integer, maxbounces::Integer)
     for i in 1:n
-        create_and_trace_photon!(system)
+        create_and_trace_photon!(system, maxbounces)
     end
 end
 
 
-function plotSystem(cr::Cairo.CairoContext, system::System)
+function plotSystem(cr::Cairo.CairoContext, system::System, rayalpha::AbstractFloat)
     Cairo.save(cr)
     for photon in system.photons
-        draw(cr, photon)
+        draw(cr, photon, rayalpha)
     end
 
     for element in system.elements
@@ -459,33 +499,78 @@ end
 
 
 
+
+line1 = Line(Point(0, 0), Point(1, 1))
+line2 = Line(Point(1, -2), Point(1, 1))
+line3 = Line(Point(1, 4), Point(1, -2))
+
+intersect(line1, line2)     # No intersection -- correct
+intersect(line1, line3)     # Intersection 2,2 -- correct.  L3 normal 0.894,0.447 -- correct
+intersect(line3, line1)     # Intersection 2,2 -- correct.  L1 normal -0.707,0.707 -- correct
+
+# Line-line intersections correct
+
+ray1 = Ray(Point(1, -1), Point(2, -2))
+ray2 = Ray(Point(-3, 1), Point(2, 0))
+ray3 = Ray(Point(3, 2), Point(0, -1))
+
+intersect(ray1, line1)      # No intersection -- correct
+intersect(ray1, line2)      # Intersection 1.5,-1.5 -- correct
+intersect(ray1, line3)      # Intersection 6,-6 -- correct
+intersect(ray2, line1)      # Intersection 1,1 -- correct
+intersect(ray2, line2)      # Intersection 4,1 -- correct
+intersect(ray2, line3)      # Intersection 2.5,1 -- correct
+intersect(ray3, line1)      # No intersection -- correct
+intersect(ray3, line2)      # Intersection 3,0 -- correct
+intersect(ray3, line3)      # Intersection 3,0 -- correct
+
+# Ray-line intersections correct
+
+segment1 = Segment(Point(-2,-1), Point(4, 2))
+segment2 = Segment(Point(2, -4), Point(2, 0))
+segment3 = Segment(Point(2.5,-1.5), Point(1, 0))
+
+intersect(ray1, segment1)   # No intersection -- correct.
+intersect(ray1, segment2)   # Intersection 4,-4 -- correct.  S2 normal 0,1 -- correct
+intersect(ray1, segment3)   # No intersection -- correct
+intersect(ray2, segment1)   # Intersection 2,1 -- correct.  S1 normal -0.447,0.894 -- correct
+intersect(ray2, segment2)   # No intersection -- correct
+intersect(ray2, segment3)   # No intersection -- correct
+intersect(ray3, segment1)   # No intersection -- correct
+intersect(ray3, segment2)   # Intersection 3,-4 -- correct.  S2 normal 0,1 -- correct
+intersect(ray3, segment3)   # Intersection 3,-1.5 -- correct.  S3 normal 0,1 -- correct
+
+# Ray-segment intersections correct
+
 system = System(
 	[
-		Reflector(Segment(Point(-4, -8), Point(20, 0)), 0.05)
-#		Reflector(Segment(Point(-4, 8), Point(20, 0)), 0.05),
-		# Dielectric(Circle(Point(1, -6), 0.5), 1.490, 0.02),
-		# Dielectric(Circle(Point(1, -5), 0.5), 1.490, 0.02),
-		# Dielectric(Circle(Point(1, -4), 0.5), 1.490, 0.02),
-		# Dielectric(Circle(Point(1, -3), 0.5), 1.490, 0.02),
-		# Dielectric(Circle(Point(1, -2), 0.5), 1.490, 0.02),
-		# Dielectric(Circle(Point(1, -1), 0.5), 1.490, 0.02),
-		# Dielectric(Circle(Point(1, 0), 0.5), 1.490, 0.02),
-		# Dielectric(Circle(Point(1, 1), 0.5), 1.490, 0.02),
-		# Dielectric(Circle(Point(1, 2), 0.5), 1.490, 0.02),
-		# Dielectric(Circle(Point(1, 3), 0.5), 1.490, 0.02),
-		# Dielectric(Circle(Point(1, 4), 0.5), 1.490, 0.02),
-		# Dielectric(Circle(Point(1, 5), 0.5), 1.490, 0.02),
-		# Dielectric(Circle(Point(1, 6), 0.5), 1.490, 0.02)
+		Reflector(Segment(Point(-4, -6.5), Point(20, 0)), 0.15),
+		Reflector(Segment(Point(-4, 6.5), Point(20, 0)), 0.15),
+		Dielectric(Circle(Point(1, -6), 0.5), 1.490, 0.02),
+		Dielectric(Circle(Point(1, -5), 0.5), 1.490, 0.02),
+		Dielectric(Circle(Point(1, -4), 0.5), 1.490, 0.02),
+		Dielectric(Circle(Point(1, -3), 0.5), 1.490, 0.02),
+		Dielectric(Circle(Point(1, -2), 0.5), 1.490, 0.02),
+		Dielectric(Circle(Point(1, -1), 0.5), 1.490, 0.02),
+		Dielectric(Circle(Point(1, 0), 0.5), 1.490, 0.02),
+		Dielectric(Circle(Point(1, 1), 0.5), 1.490, 0.02),
+		Dielectric(Circle(Point(1, 2), 0.5), 1.490, 0.02),
+		Dielectric(Circle(Point(1, 3), 0.5), 1.490, 0.02),
+		Dielectric(Circle(Point(1, 4), 0.5), 1.490, 0.02),
+		Dielectric(Circle(Point(1, 5), 0.5), 1.490, 0.02),
+		Dielectric(Circle(Point(1, 6), 0.5), 1.490, 0.02)
+
+        # Reflector(Segment(Point(-2, -4), Point(0, 8)), 0.0)
 	], 
 	[
-		LambertianSource(Segment(Point(-3, 1.9), Point(0, 0.2)), 1)
+		LambertianSource(Segment(Point(-3, -3.1), Point(0, 0.2)), 1)
 	])
 
-create_and_trace_photons!(system, 1)
+create_and_trace_photons!(system, 10000, 200)
 
 c = Cairo.CairoRGBSurface(1024, 1024)
 cr = Cairo.CairoContext(c)
 Cairo.translate(cr, 512, 512)
 Cairo.scale(cr, 50, 50)
-plotSystem(cr, system)
+plotSystem(cr, system, 0.02)
 Cairo.write_to_png(c,"test.png")

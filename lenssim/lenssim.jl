@@ -33,6 +33,10 @@ immutable Ray
     delta::Point
 end
 function draw(cr::Cairo.CairoContext, r::Ray)
+	# Don't draw stopped rays
+	if r.delta.x == 0 && r.delta.y == 0
+		return
+	end
     Cairo.move_to(cr, r.source.x, r.source.y)
     # Choose a destination point that we are certain will at least span the entire Cairo surface
     ray_dest = r.source + r.delta / norm(r.delta) * sqrt(Cairo.width(cr)^2 + Cairo.height(cr)^2)
@@ -94,15 +98,15 @@ end
 function create_photon(source::LambertianSource)
     emission_position = source.boundary.source + rand()*source.boundary.delta
 
-    # Rejection sampling of an angle theta, where Pr(theta) ~ cos(theta)
-    emission_angle = rand()*2*pi - pi
-    while rand() < cos(emission_angle)
-        emission_angle = rand()*2*pi - pi
+    # Rejection sampling of emission angle theta, where Pr(theta) ~ cos(theta) + 1
+    emission_angle = rand()*pi - pi/2
+    while rand() >= (cos(emission_angle)+1)/2
+        emission_angle = rand()*pi - pi/2
     end
 
     # Convert the emission angle theta to a delta vector
-    theta_emitter = atan(source.boundary.delta.y / source.boundary.delta.x)
-    theta_delta = theta_emitter + emission_angle
+    theta_emitter = atan2(source.boundary.delta.y, source.boundary.delta.x)
+    theta_delta = theta_emitter + emission_angle - pi/2
     delta = Point(cos(theta_delta), sin(theta_delta))
 
     return Photon(Ray(emission_position, delta))
@@ -274,7 +278,8 @@ function interact(photon::Photon, system::System)
     l = photon.ray.delta / norm(photon.ray.delta)       # Normalised photon direction
     n = intposition.normal / norm(intposition.normal)   # Normalised intersecting surface normal
 
-    c = -dot(n,l)                                       # cos(theta1)
+    c = -dot(n,l)                 	# cos(theta1)
+    s = sqrt(1-c^2)                 # sin(theta1)
 
     if c > 0
         # The surface normal points toward the photon ray; the 
@@ -295,7 +300,6 @@ function interact(photon::Photon, system::System)
     end
 
     r = n1 / n2                     # Ratio of refractive indices
-    s = sin(acos(c))                # sin(theta1).  Inefficient but it'll do
 
     # Reflection vector
     delta_reflect = l + 2*c*n
@@ -381,7 +385,7 @@ end
 
 function plotSystem(cr::Cairo.CairoContext, system::System)
     Cairo.save(cr)
-    Cairo.set_source_rgb(cr, 1, 0, 0)
+    Cairo.set_source_rgba(cr, 1, 0, 0, 0.05)
     for photon in system.photons
         for segment in photon.history
             draw(cr, segment)
@@ -404,7 +408,7 @@ end
 
 
 
-system = System([OpticalElement(Circle(Point(0, 0), 1), 1.490, 0.02)], [LambertianSource(1, Segment(Point(-2.5, -0.2), Point(0, 0.4)))])
+system = System([OpticalElement(Circle(Point(0, 0), 1), 1.490, 0.02)], [LambertianSource(1, Segment(Point(-2, -0.1), Point(0, 0.2)))])
 system
 
 c = Cairo.CairoRGBSurface(1024, 1024)
@@ -414,7 +418,7 @@ Cairo.scale(cr, 100, 100)
 plotSystem(cr, system)
 Cairo.write_to_png(c,"test1.png");
 
-create_and_trace_photons!(system, 500)
+create_and_trace_photons!(system, 5000)
 
 c = Cairo.CairoRGBSurface(1024, 1024)
 cr = Cairo.CairoContext(c)

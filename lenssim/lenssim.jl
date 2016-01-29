@@ -74,26 +74,43 @@ type Photon
 end
 Photon(ray::Ray) = Photon(ray, [])
 function draw(cr::Cairo.CairoContext, p::Photon)
+#    Cairo.set_source_rgba(cr, 1, 0, 0, 0.02)
+    Cairo.set_source_rgba(cr, 1, 0, 0, 1)
     for past_segment in p.history
         draw(cr, past_segment)
     end
-    draw(cr, ray)
+    draw(cr, p.ray)
 end
 
 BoundaryGeometry = Union{Circle, Segment}
 
 # Note current setup cannot handle cemented groups.
-type OpticalElement
+type Dielectric
     boundary::BoundaryGeometry
     index::AbstractFloat
     absorbance::AbstractFloat
 end
-draw(cr::Cairo.CairoContext, e::OpticalElement) = draw(cr, e.boundary)
+function draw(cr::Cairo.CairoContext, e::Dielectric)
+    Cairo.set_source_rgb(cr, 0, 1, 0)
+	draw(cr, e.boundary)
+end
+
+type Reflector
+	boundary::BoundaryGeometry
+	absorbance::AbstractFloat
+end
+function draw(cr::Cairo.CairoContext, r::Reflector)
+    Cairo.set_source_rgb(cr, 0, 1, 1)
+    draw(cr, r.boundary)
+end
+
+
+OpticalElement = Union{Dielectric, Reflector}
 
 
 type LambertianSource
-    intensity::AbstractFloat
     boundary::Segment
+    intensity::AbstractFloat
 end
 function create_photon(source::LambertianSource)
     emission_position = source.boundary.source + rand()*source.boundary.delta
@@ -114,7 +131,10 @@ end
 
 
 Source = Union{LambertianSource}
-draw(cr::Cairo.CairoContext, s::Source) = draw(cr, s.boundary)
+function draw(cr::Cairo.CairoContext, s::Source)
+	Cairo.set_source_rgb(cr, 1, 1, 1)
+	draw(cr, s.boundary)
+end
 
 
 type System
@@ -122,7 +142,7 @@ type System
     sources::Array{Source, 1}
     photons::Array{Photon, 1}
 end
-System(elements::Array{OpticalElement, 1}, sources::Array{Source, 1}) = System(elements, sources, [])
+System(elements, sources) = System(elements, sources, [])
 
 
 # (l.source.x + a*l.delta.x - c.centre.x)^2 + (l.source.y + a*l.delta.y - c.centre.y)^2 = c.radius^2
@@ -164,25 +184,26 @@ end
 # l1.source.x + a*l1.delta.x = l2.source.x + b*l2.delta.x
 # l1.source.y + a*l1.delta.y = l2.source.y + b*l2.delta.y
 function intersect(l1::Line, l2::Line)
-    if l1.delta.x == 0 && l1.delta.y == 0
+    if (l1.delta.x == 0 && l1.delta.y == 0) || (l2.delta.x == 0 && l2.delta.y == 0)
         return []
     end
 
     D = l1.delta.y*l2.delta.x-l1.delta.x*l2.delta.y
 
     if D == 0
-        return []   # No intersection
+        return []   # No valid intersection
     end
 
-    source_delta = l1.source - l2.source
+    source_delta = l2.source - l1.source
 
-    a = (l2.delta.y*source_delta.x - l2.delta.x*source_delta.y) / D
-    # b = (l1.delta.y*source_delta.x - l1.delta.x*source_delta.y) / D
+    a = (l2.delta.x*source_delta.y - l2.delta.y*source_delta.x) / D
 
     # Intersection point
     int_point = l1.source + a*l1.delta
 
     # Surface (line l2) normal
+    # surface_angle = atan2(l2.delta.y, l2.delta.x)
+    # int_normal = Point(cos(surface_angle + pi/2), sin(surface_angle + pi/2))
     int_normal = Point(-l2.delta.y, l2.delta.x)
     int_normal /= norm(int_normal)
 
@@ -215,9 +236,14 @@ end
 function intersect(r::Ray, s::Segment)
     line_int = intersect(Line(r.source, r.delta), Line(s.source, s.delta))
 
-    p0 = s.source
-    p1 = s.source + s.delta
-    filter!(i->((i.p.x - p0.x)*(i.p.x - p1.x) <= 0 && (i.p.y - p0.y)*(i.p.y - p1.y) <= 0), line_int)
+    # Some calculus gives an expression for the k that yields the minimum
+    # distance between a point and the line of segment s.  For the intersection 
+    # to lie within the segment, we require 0 <= k <= 1.
+	# mindist_k = -(s.delta.y*s.source.y-s.delta.y*line_int[1].p.y+s.delta.x*s.source.x-s.delta.x*line_int[1].p.x)/(s.delta.y^2+s.delta.x^2)
+
+	# TODO: Still buggy!
+
+    filter!(i->(abs(-(s.delta.y*s.source.y-s.delta.y*i.p.y+s.delta.x*s.source.x-s.delta.x*i.p.x)/(s.delta.y^2+s.delta.x^2)) <= 1), line_int)
 
     return line_int
 end
@@ -268,6 +294,12 @@ function interact(photon::Photon, system::System)
         return (photon, false)
     end
 
+    # Delegate calculation to specialised functions
+    return interact(photon, intelement, intposition)
+end
+
+
+function interact(photon::Photon, intelement::Reflector, intposition::Intersection)
     # Test for absorbance
     if rand() < intelement.absorbance
         # The ray is absorbed, and terminates here.
@@ -280,7 +312,31 @@ function interact(photon::Photon, system::System)
 
     c = -dot(n,l)                 	# cos(theta1)
     if abs(c) > 1					# Clamp cos(theta1) for stability
-    	c /= abs(c)
+    	c = sign(c)
+    end
+
+    # Reflection vector
+    delta_reflect = l + 2*c*n
+    println(l, "\t", n, "\t", c, "\t", delta_reflect)
+
+    return (Photon(Ray(intposition.p, delta_reflect), vcat(photon.history, Segment(photon.ray.source, intposition.p - photon.ray.source))), true)
+end
+
+
+function interact(photon::Photon, intelement::Dielectric, intposition::Intersection)
+    # Test for absorbance
+    if rand() < intelement.absorbance
+        # The ray is absorbed, and terminates here.
+        # Represent a terminated photon as a position and zero delta vector
+        return (Photon(Ray(intposition.p, Point(0.0, 0.0)), vcat(photon.history, Segment(photon.ray.source, intposition.p - photon.ray.source))), true)
+    end
+
+    l = photon.ray.delta / norm(photon.ray.delta)       # Normalised photon direction
+    n = intposition.normal / norm(intposition.normal)   # Normalised intersecting surface normal
+
+    c = -dot(n,l)                 	# cos(theta1)
+    if abs(c) > 1					# Clamp cos(theta1) for stability
+    	c = sign(c)
     end
     s = sqrt(1-c^2)                 # sin(theta1)
 
@@ -321,7 +377,6 @@ function interact(photon::Photon, system::System)
     reflectance_s = ((n1*c - n2*sqrt(1 - (r*s)^2)) / (n1*c + n2*sqrt(1 - (r*s)^2)))^2
     reflectance_p = ((n1*sqrt(1 - (r*s)^2) - n2*c) / (n1*sqrt(1 - (r*s)^2) + n2*c))^2
     reflectance_avg = (reflectance_s + reflectance_p) / 2
-    transmittance_avg = 1 - reflectance_avg
 
     # Sample to determine the path taken
     if rand() < reflectance_avg
@@ -388,24 +443,17 @@ end
 
 function plotSystem(cr::Cairo.CairoContext, system::System)
     Cairo.save(cr)
-    Cairo.set_source_rgba(cr, 1, 0, 0, 0.01)
     for photon in system.photons
-        for segment in photon.history
-            draw(cr, segment)
-        end
-        draw(cr, photon.ray)
+        draw(cr, photon)
     end
 
-    Cairo.set_source_rgb(cr, 0, 1, 0)
     for element in system.elements
         draw(cr, element)
     end
 
-    Cairo.set_source_rgb(cr, 1, 1, 1)
     for source in system.sources
         draw(cr, source)
     end
-
     Cairo.restore(cr)
 end
 
@@ -413,36 +461,31 @@ end
 
 system = System(
 	[
-		OpticalElement(Circle(Point(1, -8), 0.5), 1.490, 0.02),
-		OpticalElement(Circle(Point(1, -7), 0.5), 1.490, 0.02),
-		OpticalElement(Circle(Point(1, -6), 0.5), 1.490, 0.02),
-		OpticalElement(Circle(Point(1, -5), 0.5), 1.490, 0.02),
-		OpticalElement(Circle(Point(1, -4), 0.5), 1.490, 0.02),
-		OpticalElement(Circle(Point(1, -3), 0.5), 1.490, 0.02),
-		OpticalElement(Circle(Point(1, -2), 0.5), 1.490, 0.02),
-		OpticalElement(Circle(Point(1, -1), 0.5), 1.490, 0.02),
-		OpticalElement(Circle(Point(1, 0), 0.5), 1.490, 0.02),
-		OpticalElement(Circle(Point(1, 1), 0.5), 1.490, 0.02),
-		OpticalElement(Circle(Point(1, 2), 0.5), 1.490, 0.02),
-		OpticalElement(Circle(Point(1, 3), 0.5), 1.490, 0.02),
-		OpticalElement(Circle(Point(1, 4), 0.5), 1.490, 0.02),
-		OpticalElement(Circle(Point(1, 5), 0.5), 1.490, 0.02),
-		OpticalElement(Circle(Point(1, 6), 0.5), 1.490, 0.02),
-		OpticalElement(Circle(Point(1, 7), 0.5), 1.490, 0.02),
-		OpticalElement(Circle(Point(1, 8), 0.5), 1.490, 0.02)
+		Reflector(Segment(Point(-4, -8), Point(20, 0)), 0.05)
+#		Reflector(Segment(Point(-4, 8), Point(20, 0)), 0.05),
+		# Dielectric(Circle(Point(1, -6), 0.5), 1.490, 0.02),
+		# Dielectric(Circle(Point(1, -5), 0.5), 1.490, 0.02),
+		# Dielectric(Circle(Point(1, -4), 0.5), 1.490, 0.02),
+		# Dielectric(Circle(Point(1, -3), 0.5), 1.490, 0.02),
+		# Dielectric(Circle(Point(1, -2), 0.5), 1.490, 0.02),
+		# Dielectric(Circle(Point(1, -1), 0.5), 1.490, 0.02),
+		# Dielectric(Circle(Point(1, 0), 0.5), 1.490, 0.02),
+		# Dielectric(Circle(Point(1, 1), 0.5), 1.490, 0.02),
+		# Dielectric(Circle(Point(1, 2), 0.5), 1.490, 0.02),
+		# Dielectric(Circle(Point(1, 3), 0.5), 1.490, 0.02),
+		# Dielectric(Circle(Point(1, 4), 0.5), 1.490, 0.02),
+		# Dielectric(Circle(Point(1, 5), 0.5), 1.490, 0.02),
+		# Dielectric(Circle(Point(1, 6), 0.5), 1.490, 0.02)
 	], 
 	[
-		LambertianSource(1, Segment(Point(-3, -2.1), Point(0, 0.2))),
-		LambertianSource(1, Segment(Point(-3, -0.1), Point(0, 0.2))),
-		LambertianSource(1, Segment(Point(-3, 1.9), Point(0, 0.2)))
+		LambertianSource(Segment(Point(-3, 1.9), Point(0, 0.2)), 1)
 	])
-system
 
-create_and_trace_photons!(system, 20000)
+create_and_trace_photons!(system, 1)
 
 c = Cairo.CairoRGBSurface(1024, 1024)
 cr = Cairo.CairoContext(c)
 Cairo.translate(cr, 512, 512)
 Cairo.scale(cr, 50, 50)
 plotSystem(cr, system)
-Cairo.write_to_png(c,"test.png");
+Cairo.write_to_png(c,"test.png")

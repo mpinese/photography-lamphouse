@@ -279,6 +279,9 @@ function interact(photon::Photon, system::System)
     n = intposition.normal / norm(intposition.normal)   # Normalised intersecting surface normal
 
     c = -dot(n,l)                 	# cos(theta1)
+    if abs(c) > 1					# Clamp cos(theta1) for stability
+    	c /= abs(c)
+    end
     s = sqrt(1-c^2)                 # sin(theta1)
 
     if c > 0
@@ -385,7 +388,7 @@ end
 
 function plotSystem(cr::Cairo.CairoContext, system::System)
     Cairo.save(cr)
-    Cairo.set_source_rgba(cr, 1, 0, 0, 0.05)
+    Cairo.set_source_rgba(cr, 1, 0, 0, 0.01)
     for photon in system.photons
         for segment in photon.history
             draw(cr, segment)
@@ -408,21 +411,38 @@ end
 
 
 
-system = System([OpticalElement(Circle(Point(0, 0), 1), 1.490, 0.02)], [LambertianSource(1, Segment(Point(-2, -0.1), Point(0, 0.2)))])
+system = System(
+	[
+		OpticalElement(Circle(Point(1, -8), 0.5), 1.490, 0.02),
+		OpticalElement(Circle(Point(1, -7), 0.5), 1.490, 0.02),
+		OpticalElement(Circle(Point(1, -6), 0.5), 1.490, 0.02),
+		OpticalElement(Circle(Point(1, -5), 0.5), 1.490, 0.02),
+		OpticalElement(Circle(Point(1, -4), 0.5), 1.490, 0.02),
+		OpticalElement(Circle(Point(1, -3), 0.5), 1.490, 0.02),
+		OpticalElement(Circle(Point(1, -2), 0.5), 1.490, 0.02),
+		OpticalElement(Circle(Point(1, -1), 0.5), 1.490, 0.02),
+		OpticalElement(Circle(Point(1, 0), 0.5), 1.490, 0.02),
+		OpticalElement(Circle(Point(1, 1), 0.5), 1.490, 0.02),
+		OpticalElement(Circle(Point(1, 2), 0.5), 1.490, 0.02),
+		OpticalElement(Circle(Point(1, 3), 0.5), 1.490, 0.02),
+		OpticalElement(Circle(Point(1, 4), 0.5), 1.490, 0.02),
+		OpticalElement(Circle(Point(1, 5), 0.5), 1.490, 0.02),
+		OpticalElement(Circle(Point(1, 6), 0.5), 1.490, 0.02),
+		OpticalElement(Circle(Point(1, 7), 0.5), 1.490, 0.02),
+		OpticalElement(Circle(Point(1, 8), 0.5), 1.490, 0.02)
+	], 
+	[
+		LambertianSource(1, Segment(Point(-3, -2.1), Point(0, 0.2))),
+		LambertianSource(1, Segment(Point(-3, -0.1), Point(0, 0.2))),
+		LambertianSource(1, Segment(Point(-3, 1.9), Point(0, 0.2)))
+	])
 system
 
-c = Cairo.CairoRGBSurface(1024, 1024)
-cr = Cairo.CairoContext(c)
-Cairo.translate(cr, 512, 512)
-Cairo.scale(cr, 100, 100)
-plotSystem(cr, system)
-Cairo.write_to_png(c,"test1.png");
-
-create_and_trace_photons!(system, 5000)
+create_and_trace_photons!(system, 20000)
 
 c = Cairo.CairoRGBSurface(1024, 1024)
 cr = Cairo.CairoContext(c)
 Cairo.translate(cr, 512, 512)
-Cairo.scale(cr, 100, 100)
+Cairo.scale(cr, 50, 50)
 plotSystem(cr, system)
-Cairo.write_to_png(c,"test2.png");
+Cairo.write_to_png(c,"test.png");

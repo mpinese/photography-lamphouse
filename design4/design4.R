@@ -1,20 +1,25 @@
 compileDesign = function(design, path)
 {
     design_string = paste(
-        "void light led_red\n",
+        "void brightdata led_dist\n",
+        "4 corr led.dat source.cal src_theta\n",
         "0\n",
-        "0\n",
-        "3  1   0   0\n",
+        "1 1.27324e+06\n",
         "\n",
-        "void light led_green\n",
+        "led_dist light led_red\n",
         "0\n",
         "0\n",
-        "3  0   1   0\n",
+        "3  1e6   0   0\n",
         "\n",
-        "void light led_blue\n",
+        "led_dist light led_green\n",
         "0\n",
         "0\n",
-        "3  0   0   1\n",
+        "3  0   1e6   0\n",
+        "\n",
+        "led_dist light led_blue\n",
+        "0\n",
+        "0\n",
+        "3  0   0   1e6\n",
         "\n",
         "void plastic white_paint\n",
         "0\n",
@@ -95,12 +100,11 @@ compileDesign = function(design, path)
             "   X   Y   I\n",
             "   4\n",
             "\n",
-            "led_C cylinder ledN_chip\n",
+
+            "led_C sphere ledN_chip\n",
             "0\n",
             "0\n",
-            "7  X   Y   I\n",
-            "   X   Y   J\n",
-            "   1.5\n",
+            "4  X   Y   J   0.0005\n",
             "\n", sep = "")
 
         led_string = gsub("X", led$x, led_string)
@@ -143,7 +147,7 @@ evaluateDesign = function(design, density = 8)
     grid = expand.grid(x = grid_points, y = grid_points)
     cat(sprintf("%f %f -1 0 0 1\n", grid$x, grid$y), file = grid_file, append = FALSE)
 
-    system(sprintf("rtrace -ab 1 -h %s < %s > %s", oct_file, grid_file, value_file))
+    system(sprintf("rtrace -ab 4 -h %s < %s > %s", oct_file, grid_file, value_file))
 
     values = read.table(value_file)
     colnames(values) = c("R", "G", "B")

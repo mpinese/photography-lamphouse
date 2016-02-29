@@ -1,0 +1,69 @@
+## ./m5 -Da=150 -Db=100 -Dd=21 design3_dist_test.rad.m5 | oconv - | rpict -av 0 0 0 -ab 4 -vp 52.5 -200 52.5 -vd 0 1 0 | ximage
+
+void light led_light
+0
+0
+3	100000	100000	100000
+
+void trans diffuser
+0
+0
+7	0.98	0.98	0.98
+	0.04	0.15
+	0.47	0.01
+
+void dielectric PMMA
+0
+0
+5	0.92	0.92	0.92
+	1.490	0
+
+##led_light polygon led1
+##0
+##0
+##12	
+##	53	$a	52
+##	53	$a	53
+##	52	$a	53
+##	52	$a	52
+
+led_light sphere led2
+0
+0
+4	52.5 $a 52.5 5
+
+void plastic pink_paint
+0
+0
+5	1	0.3	1
+	0.02	0.01
+
+
+#d = 1*$d
+#cyl_dia = 105/d
+#for (i = 1; i <= 1*d; i++) {
+PMMA cylinder c$i
+0
+0
+7	$((i-0.5)*cyl_dia)	$(a-b)	105
+	$((i-0.5)*cyl_dia)	$(a-b)	0
+	$(cyl_dia)
+#}
+
+
+##diffuser polygon diffuser_panel_2
+##0
+##0
+##12	0	$(a-50)	0
+##	105	$(a-50)	0
+##	105	$(a-50)	105
+##	0	$(a-50)	105
+
+
+diffuser polygon diffuser_panel_1
+0
+0
+12	0	0	0
+	105	0	0
+	105	0	105
+	0	0	105

@@ -1,9 +1,17 @@
-## ./m5 -Da=200 -Db=50 -Dc=50 -Dd=10 -De=20 design3.rad.m5 | oconv - | /usr/lib/radiance/rview -av .01 .01 .01 -vp 52.5 -500 52.5 -vd 0 1 0 /dev/stdin
+## ./m5 -Da=200 -Db=50 -Dc=50 -Dd=10 -De=20 -Df=180 design3.rad.m5 | oconv - | /usr/lib/radiance/rview -av .01 .01 .01 -vp 52.5 -150 52.5 -vd 0 1 0 /dev/stdin
+## ./m5 -Da=200 -Db=50 -Dc=50 -Dd=10 -De=20 -Df=180 design3.rad.m5 | oconv - | rpict -av 0 0 0 -ab 6 -vp 52.5 -150 52.5 -vd 0 1 0 | pfilt | ximage
+
+## a	Total height
+## b	Distance from top to first lens array
+## c	Distance from first lens array to second lens array
+## d	Number of lenses per array
+## e	LED offset
+## f	Distance from bottom to diffuser
 
 void light led_light
 0
 0
-3	100	100	100
+3	1000	1000	1000
 
 void light test_light
 0
@@ -24,7 +32,19 @@ void plastic white_paint
 void plastic green_paint
 0
 0
-5	0.2	0.9	0.2
+5	0.1	0.9	0.1
+	0.02	0.08
+
+void plastic red_paint
+0
+0
+5	0.9	0.1	0.1
+	0.02	0.08
+
+void plastic blue_paint
+0
+0
+5	0.1	0.1	0.9
 	0.02	0.08
 
 void metal al_foil
@@ -138,7 +158,7 @@ led_light polygon led1
 	$(e+5)	$(a-1)	$(e+5)
 	$e	$(a-1)	$(e+5)
 	$e	$(a-1)	$e
-	
+
 
 #d = 1*$d
 #if(d > 0) {
@@ -156,8 +176,20 @@ PMMA cylinder c1_$i
 PMMA cylinder c2_$i
 0
 0
-7	0	$(a-b)	$((i-0.5)*cyl_dia)
-	105	$(a-b)	$((i-0.5)*cyl_dia)
+7	0	$(a-b-c)	$((i-0.5)*cyl_dia)
+	105	$(a-b-c)	$((i-0.5)*cyl_dia)
 	$(cyl_dia)
 #}
+<<<<<<< local
+
+
+diffuser polygon diffuser_panel
+0
+0
+12	0	$(f)	0
+	0	$(f)	105
+	105	$(f)	105
+	105	$(f)	0
+=======
 #}
+>>>>>>> other

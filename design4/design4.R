@@ -143,7 +143,7 @@ evaluateDesign = function(design, density = 8)
     grid = expand.grid(x = grid_points, y = grid_points)
     cat(sprintf("%f %f -1 0 0 1\n", grid$x, grid$y), file = grid_file, append = FALSE)
 
-    system(sprintf("rtrace -ab 0 -h %s < %s > %s", oct_file, grid_file, value_file))
+    system(sprintf("rtrace -ab 1 -h %s < %s > %s", oct_file, grid_file, value_file))
 
     values = read.table(value_file)
     colnames(values) = c("R", "G", "B")
@@ -161,9 +161,10 @@ design = list(
         list(x = 70, y = 70, colour = "green")))
 
 
-test = evaluateDesign(design)
+test = evaluateDesign(design, density = 40)
 
-image(x = test$x, y = test$y, z = test$R)
+image(matrix(log(test$R), nrow = sqrt(nrow(test)), byrow = TRUE), col = grey(seq(0, 1, 0.01)))
+image(matrix(test$G, nrow = sqrt(nrow(test)), byrow = TRUE), col = grey(seq(0, 1, 0.01)))
 
 
 # TODO: Proper illuminant modelling

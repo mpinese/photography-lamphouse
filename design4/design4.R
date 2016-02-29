@@ -33,7 +33,7 @@ compileDesign = function(design, path)
         "5  0.92    0.92    0.92\n",
         "   0.12    0.1\n",
         "\n",
-        "al_foil polygon top_wall\n",
+        "white_paint polygon top_wall\n",
         "0\n",
         "0\n",
         "12 0   0   H\n",
@@ -41,7 +41,7 @@ compileDesign = function(design, path)
         "   W   W   H\n",
         "   W   0   H\n",
         "\n",
-        "al_foil polygon bottom_wall\n",
+        "white_paint polygon bottom_wall\n",
         "0\n",
         "0\n",
         "30 0   0   0\n",
@@ -55,7 +55,7 @@ compileDesign = function(design, path)
         "   D   E   0\n",
         "   D   D   0\n",
         "\n",
-        "al_foil polygon left_wall\n",
+        "white_paint polygon left_wall\n",
         "0\n",
         "0\n",
         "12 0   0   0\n",
@@ -63,7 +63,7 @@ compileDesign = function(design, path)
         "   0   W   H\n",
         "   0   0   H\n",
         "\n",
-        "al_foil polygon right_wall\n",
+        "white_paint polygon right_wall\n",
         "0\n",
         "0\n",
         "12 W   0   0\n",
@@ -71,7 +71,7 @@ compileDesign = function(design, path)
         "   W   W   H\n",
         "   W   W   0\n",
         "\n",
-        "al_foil polygon front_wall\n",
+        "white_paint polygon front_wall\n",
         "0\n",
         "0\n",
         "12 0   0   0\n",
@@ -79,7 +79,7 @@ compileDesign = function(design, path)
         "   W   0   H\n",
         "   W   0   0\n",
         "\n",
-        "al_foil polygon back_wall\n",
+        "white_paint polygon back_wall\n",
         "0\n",
         "0\n",
         "12 0   W   0\n",
@@ -130,10 +130,12 @@ compileDesign = function(design, path)
 
 evaluateDesign = function(design, density = 8)
 {
-    rad_file = tempfile()
-    oct_file = tempfile()
-    grid_file = tempfile()
-    value_file = tempfile()
+    file_stem = tempfile()
+    rad_file = paste(file_stem, ".rad", sep = "")
+    oct_file = paste(file_stem, ".oct", sep = "")
+    grid_file = paste(file_stem, ".grid", sep = "")
+    value_file = paste(file_stem, ".value", sep = "")
+    global_file = paste(file_stem, ".gpm", sep = "")
 
     design_string = compileDesign(design)
 
@@ -141,13 +143,15 @@ evaluateDesign = function(design, density = 8)
 
     system(sprintf("oconv %s > %s", rad_file, oct_file))
 
+    system(sprintf("mkpmap -app %s 1000 10 -bv+ -dp 50 %s", global_file, oct_file))
+
     grid_points = seq((design$width - 70)/2, (design$width - 70)/2 + 70, length.out = density + 1)
     grid_points = (grid_points[-length(grid_points)] + grid_points[-1]) / 2
 
     grid = expand.grid(x = grid_points, y = grid_points)
     cat(sprintf("%f %f -1 0 0 1\n", grid$x, grid$y), file = grid_file, append = FALSE)
 
-    system(sprintf("rtrace -ab 4 -h %s < %s > %s", oct_file, grid_file, value_file))
+    system(sprintf("rtrace -app %s -I -h %s < %s > %s", global_file, oct_file, grid_file, value_file))
 
     values = read.table(value_file)
     colnames(values) = c("R", "G", "B")
@@ -158,17 +162,16 @@ evaluateDesign = function(design, density = 8)
 
 
 design = list(
-    height = 100,
+    height = 500,
     width = 100,
     leds = list(
         list(x = 50, y = 50, colour = "red"),
-        list(x = 70, y = 70, colour = "green")))
+        list(x = 70, y = 70, colour = "green"),
+        list(x = 2, y = 2, colour = "blue")))
 
 
-test = evaluateDesign(design, density = 40)
+test = evaluateDesign(design, density = 20)
 
-image(matrix(log(test$R), nrow = sqrt(nrow(test)), byrow = TRUE), col = grey(seq(0, 1, 0.01)))
-image(matrix(test$G, nrow = sqrt(nrow(test)), byrow = TRUE), col = grey(seq(0, 1, 0.01)))
-
-
-# TODO: Proper illuminant modelling
+image(matrix(test$R, nrow = sqrt(nrow(test)), byrow = TRUE), col = grey(seq(0, 1, 0.01)))
+#image(matrix(test$G, nrow = sqrt(nrow(test)), byrow = TRUE), col = grey(seq(0, 1, 0.01)))
+image(matrix(test$B, nrow = sqrt(nrow(test)), byrow = TRUE), col = grey(seq(0, 1, 0.01)))

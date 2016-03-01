@@ -1,10 +1,10 @@
 compileDesign = function(design, path)
 {
     design_string = paste(
-        "void brightdata led_dist\n",
-        "4 corr led.dat source.cal src_theta\n",
+        "void brightfunc led_dist\n",
+        "2 brightness led_dist.cal\n",
         "0\n",
-        "1 1.27324e+06\n",
+        "0\n",
         "\n",
         "led_dist light led_red\n",
         "0\n",
@@ -50,9 +50,9 @@ compileDesign = function(design, path)
         "   0   W   0\n",
         "   0   0   0\n",
         "   D   D   0\n",
-        "   E   D   0\n",
-        "   E   E   0\n",
         "   D   E   0\n",
+        "   E   E   0\n",
+        "   E   D   0\n",
         "   D   D   0\n",
         "\n",
         "white_paint polygon left_wall\n",
@@ -101,12 +101,19 @@ compileDesign = function(design, path)
             "   4\n",
             "\n",
 
-            "led_C sphere ledN_chip\n",
+            "led_C polygon ledN_chip\n",
             "0\n",
             "0\n",
-            "4  X   Y   J   0.0005\n",
+            "12  X1  Y1  J\n",
+            "    X1  Y2  J\n",
+            "    X2  Y2  J\n",
+            "    X2  Y1  J\n",
             "\n", sep = "")
 
+        led_string = gsub("X1", led$x-1, led_string)
+        led_string = gsub("X2", led$x+1, led_string)
+        led_string = gsub("Y1", led$x-1, led_string)
+        led_string = gsub("Y2", led$x+1, led_string)
         led_string = gsub("X", led$x, led_string)
         led_string = gsub("Y", led$y, led_string)
         led_string = gsub("N", chip_id, led_string)
@@ -174,4 +181,4 @@ test = evaluateDesign(design, density = 20)
 
 image(matrix(test$R, nrow = sqrt(nrow(test)), byrow = TRUE), col = grey(seq(0, 1, 0.01)))
 #image(matrix(test$G, nrow = sqrt(nrow(test)), byrow = TRUE), col = grey(seq(0, 1, 0.01)))
-image(matrix(test$B, nrow = sqrt(nrow(test)), byrow = TRUE), col = grey(seq(0, 1, 0.01)))
+#image(matrix(test$B, nrow = sqrt(nrow(test)), byrow = TRUE), col = grey(seq(0, 1, 0.01)))

@@ -1,0 +1,5 @@
+dotprod = (Dx*Nx + Dy*Ny + Dz*Nz);
+angle_rads = Acos(dotprod / sqrt(Dx*Dx + Dy*Dy + Dz*Dz) / sqrt(Nx*Nx + Ny*Ny + Nz*Nz));
+angle_degs = angle_rads/2/PI*360;
+angle_degs_clipped_folded = abs(max(min(angle_degs, 90), -90));
+brightness = if(35 - angle_degs_clipped_folded, 0.8/35*angle_degs_clipped_folded, 0.8+0.2/55*(angle_degs_clipped_folded-35));

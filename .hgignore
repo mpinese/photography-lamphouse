@@ -1,0 +1,3 @@
+syntax: glob
+controller/arduino-1.6.12/
+controller\resources\Arduino_STM32-master.zip

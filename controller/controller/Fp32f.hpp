@@ -540,7 +540,7 @@ namespace Fp
 	inline Fp32f<q> inv(Fp32f<q> a);
 
 	template <uint8_t q>
-	inline Fp32f<q> abs(Fp32f<q> a)
+	inline Fp32f<q> fabs(Fp32f<q> a)
 	{ 
 		Fp32f<q> r; 
 		r.rawVal = a.rawVal > 0 ? a.rawVal : -a.rawVal; 

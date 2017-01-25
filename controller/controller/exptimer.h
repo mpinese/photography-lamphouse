@@ -30,7 +30,7 @@ public:
   fix24_t get_Phi();
   fix24_t get_N();
   fix24_t get_s();
-}
+};
 
 
 class ExposureTimer

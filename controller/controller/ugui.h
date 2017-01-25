@@ -1,14 +1,14 @@
 /* -------------------------------------------------------------------------------- */
-/* -- µGUI - Generic GUI module (C)Achim Döbler, 2015                            -- */
+/* -- ÂµGUI - Generic GUI module (C)Achim DÃ¶bler, 2015                            -- */
 /* -------------------------------------------------------------------------------- */
-// µGUI is a generic GUI module for embedded systems.
+// ÂµGUI is a generic GUI module for embedded systems.
 // This is a free software that is open for education, research and commercial
 // developments under license policy of following terms.
 //
-//  Copyright (C) 2015, Achim Döbler, all rights reserved.
+//  Copyright (C) 2015, Achim DÃ¶bler, all rights reserved.
 //  URL: http://www.embeddedlightning.com/
 //
-// * The µGUI module is a free software and there is NO WARRANTY.
+// * The ÂµGUI module is a free software and there is NO WARRANTY.
 // * No restriction on use. You can use, modify and redistribute it for
 //   personal, non-profit or commercial products UNDER YOUR RESPONSIBILITY.
 // * Redistributions of source code must retain the above copyright notice.
@@ -23,7 +23,7 @@
 
 
 /* -------------------------------------------------------------------------------- */
-/* -- µGUI FONTS                                                                 -- */
+/* -- ÂµGUI FONTS                                                                 -- */
 /* -- Source: http://www.mikrocontroller.net/user/show/benedikt                  -- */
 /* -------------------------------------------------------------------------------- */
 typedef enum
@@ -538,7 +538,7 @@ typedef struct
 #define IMG_TYPE_BMP                                  (1<<0)
 
 /* -------------------------------------------------------------------------------- */
-/* -- µGUI DRIVER                                                                -- */
+/* -- ÂµGUI DRIVER                                                                -- */
 /* -------------------------------------------------------------------------------- */
 typedef struct
 {
@@ -556,7 +556,7 @@ typedef struct
 #define DRIVER_FILL_AREA                              2
 
 /* -------------------------------------------------------------------------------- */
-/* -- µGUI CORE STRUCTURE                                                        -- */
+/* -- ÂµGUI CORE STRUCTURE                                                        -- */
 /* -------------------------------------------------------------------------------- */
 typedef struct
 {
@@ -591,7 +591,7 @@ typedef struct
 #define UG_SATUS_WAIT_FOR_UPDATE                      (1<<0)
 
 /* -------------------------------------------------------------------------------- */
-/* -- µGUI COLORS                                                                -- */
+/* -- ÂµGUI COLORS                                                                -- */
 /* -- Source: http://www.rapidtables.com/web/color/RGB_Color.htm                 -- */
 /* -------------------------------------------------------------------------------- */
 #ifdef USE_COLOR_RGB565
@@ -1051,3 +1051,4 @@ UG_RESULT UG_ImageSetBMP( UG_WINDOW* wnd, UG_U8 id, const UG_BMP* bmp );
 
 
 #endif
+

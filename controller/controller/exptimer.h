@@ -1,36 +1,41 @@
 #pragma once
 
+#include "fix24.h"
+
 
 enum ETStatus {
   OK = 0
 };
 
-//
-//class Exposure
-//{
-//private:
-//  // Numbers as set
-//  float setE, setT, setI, setS;
-//  uint8_t setF;
-//
-//  // Fixed point
-//  int16_t log2E, log2T, log2I, log2S, log2F;
-//
-//public:
-//  ETStatus calcE();
-//  ETStatus calcT();
-//  ETStatus calcI();
-//
-//  ETStatus setE(float E);
-//  ETStatus setT(float T);
-//  ETStatus setI(float I);
-//  ETStatus setS(float S);
-//  ETStatus setF(int8_t f);
-//}
+
+
+// log2H + K = log2t - 2log2N + log2Phi - 2log2s
+
+
+class Exposure
+{
+private:
+  fix24_t log2H, log2t, log2N2, log2Phi, log2s2;
+
+public:
+  fix24_t change_log2H(fix24_t delta);
+  fix24_t change_t(fix24_t delta);
+  fix24_t change_log2Phi(fix24_t delta);
+
+  fix24_t set_N(fix24_t new_N);
+  fix24_t set_s(fix24_t new_s);
+
+  fix24_t get_H();
+  fix24_t get_t();
+  fix24_t get_Phi();
+  fix24_t get_N();
+  fix24_t get_s();
+}
 
 
 class ExposureTimer
 {
 //  Exposure green, blue;
 };
+
 

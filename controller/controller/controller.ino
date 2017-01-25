@@ -1,14 +1,14 @@
-#include <Adafruit_ILI9341_STM.h>
+#include "Adafruit_ILI9341_STM.h"
 
 #define  USE_FONT_12X20
 
 extern "C" {
-  #include "uGUI/ugui.h"
+  #include "ugui.h"
 }
 
 #include "SPI.h"
 
-//#include "exptimer.h"
+#include "exptimer.h"
 
 
 const uint8_t TFT_CS = PC15;
@@ -25,15 +25,20 @@ void ugui_driver_pset(UG_S16 x, UG_S16 y, UG_COLOR c)
   tft.drawPixel(x, y, c);
 }
 
+
 UG_RESULT ugui_driver_drawline(UG_S16 x0, UG_S16 y0, UG_S16 x1, UG_S16 y1, UG_COLOR c)
 {
   tft.drawLine(x0, y0, x1, y1, c);
   return UG_RESULT_OK;
 }
 
+
 UG_RESULT ugui_driver_fillframe(UG_S16 x0, UG_S16 y0, UG_S16 x1, UG_S16 y1, UG_COLOR c)
 {
-  tft.fillRect(x0, y0, x1+1, y1+1, c);
+  if (x0 == 0 && y0 == 0 && x1 == 319 && y1 == 239)
+    tft.fillScreen(c);
+  else
+    tft.fillRect(x0, y0, x1+1, y1+1, c);
   return UG_RESULT_OK;
 }
 
@@ -72,12 +77,12 @@ void setup()
   UG_SetForecolor(C_RED);
 
   UG_PutString(60, 0, "GRN");
-  UG_PutString(5, 26, "E  4.1  3.9");   // E_e
+  UG_PutString(5, 26, "H  4.1  3.9");   // H_e
   UG_PutString(5, 26*2, "t 15.0 12.7"); // t
   UG_PutString(5, 26*3, "P -2.2");      // Phi_e
 
   UG_PutString(160+60, 0, "BLU");
-  UG_PutString(165, 26, "E  4.1  3.9");
+  UG_PutString(165, 26, "H  4.1  3.9");
   UG_PutString(165, 26*2, "t 15.0 12.7");
   UG_PutString(165, 26*3, "P -2.2");
 
@@ -112,4 +117,5 @@ void loop(void)
 //
 //    UG_FillScreen(C_WHITE);
 }
+
 

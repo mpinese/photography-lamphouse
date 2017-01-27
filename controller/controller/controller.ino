@@ -14,6 +14,9 @@ extern "C" {
 const uint8_t TFT_CS = PC15;
 const uint8_t TFT_DC = PC14;
 const uint8_t TFT_RST = PC13;
+const uint8_t LED_RED = PA10;
+const uint8_t LED_GRN = PA9;
+const uint8_t LED_BLU = PA8;
 
 
 Adafruit_ILI9341_STM tft = Adafruit_ILI9341_STM(TFT_CS, TFT_DC, TFT_RST);
@@ -62,6 +65,14 @@ void send_display_diagnostics()
 void setup()
 {
   Serial.begin(115200);
+
+  pinMode(LED_RED, PWM);
+  pinMode(LED_GRN, PWM);
+  pinMode(LED_BLU, PWM);
+  pwmWrite(LED_RED, 0);
+  pwmWrite(LED_GRN, 0);
+  pwmWrite(LED_BLU, 0);
+  
   tft.begin();
   tft.setRotation(3);
 
@@ -96,8 +107,59 @@ void setup()
 
 void loop(void)
 {
-//    send_display_diagnostics();
-//    delay(1000);
+    fix24_t x, y;
+
+    send_display_diagnostics();
+    delay(1000);
+
+    x = fix24_t(1.0);
+    y = log2(x);
+    Serial.println(y.rawVal / float(1 << 24));
+
+    x = fix24_t(2.0);
+    y = log2(x);
+    Serial.println(y.rawVal / float(1 << 24));
+
+    x = fix24_t(2.5);
+    y = log2(x);
+    Serial.println(y.rawVal / float(1 << 24));
+
+    x = fix24_t(0.0);   // 0.00
+    y = sqrt(x);
+    Serial.println(y.rawVal / float(1 << 24));
+
+    x = fix24_t(0.5);   // 0.707
+    y = sqrt(x);
+    Serial.println(y.rawVal / float(1 << 24));
+
+    x = fix24_t(1.0);   // 1.00
+    y = sqrt(x);
+    Serial.println(y.rawVal / float(1 << 24));
+
+    x = fix24_t(2.5);   // 1.58
+    y = sqrt(x);
+    Serial.println(y.rawVal / float(1 << 24));
+
+    x = fix24_t(16.0);   // 4.00
+    y = sqrt(x);
+    Serial.println(y.rawVal / float(1 << 24));
+
+    x = fix24_t(0.0);   // 1.00
+    y = exp2(x);
+    Serial.println(y.rawVal / float(1 << 24));
+
+    x = fix24_t(0.5);   // 1.41
+    y = exp2(x);
+    Serial.println(y.rawVal / float(1 << 24));
+
+    x = fix24_t(1.0);   // 2.00
+    y = exp2(x);
+    Serial.println(y.rawVal / float(1 << 24));
+
+    x = fix24_t(2.5);   // 5.66
+    y = exp2(x);
+    Serial.println(y.rawVal / float(1 << 24));
+
 //    UG_FillScreen(C_WHITE);
 //
 //    for (uint16_t i = 0; i < 240; i++)

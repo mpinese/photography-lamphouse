@@ -112,15 +112,15 @@ void loop(void)
     send_display_diagnostics();
     delay(1000);
 
-    x = fix24_t(1.0);
+    x = fix24_t(1.0);   // 0.00
     y = log2(x);
     Serial.println(y.rawVal / float(1 << 24));
 
-    x = fix24_t(2.0);
+    x = fix24_t(2.0);   // 1.00
     y = log2(x);
     Serial.println(y.rawVal / float(1 << 24));
 
-    x = fix24_t(2.5);
+    x = fix24_t(2.5);   // 1.32
     y = log2(x);
     Serial.println(y.rawVal / float(1 << 24));
 
@@ -128,7 +128,7 @@ void loop(void)
     y = sqrt(x);
     Serial.println(y.rawVal / float(1 << 24));
 
-    x = fix24_t(0.5);   // 0.707
+    x = fix24_t(0.5);   // 0.71
     y = sqrt(x);
     Serial.println(y.rawVal / float(1 << 24));
 

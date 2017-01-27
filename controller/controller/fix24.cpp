@@ -7,6 +7,7 @@ using namespace Fp;
 
 const uint8_t LOG2_TBL_DEGREE = 6;
 const uint32_t FIX24_LOG2_TBL[] = {
+    0, 
       375270,   744810,  1108793,  1467383,  
      1820738,  2169009,  2512340,  2850868,  
      3184728,  3514044,  3838941,  4159533,  
@@ -22,11 +23,12 @@ const uint32_t FIX24_LOG2_TBL[] = {
     13760320, 13973576, 14184969, 14394532, 
     14602297, 14808293, 15012551, 15215099, 
     15415967, 15615181, 15812769, 16008758, 
-    16203172, 16396036, 16587377
+    16203172, 16396036, 16587377, 16777216
 };
 
 const uint8_t EXP2_TBL_DEGREE = 6;
 const uint32_t FIX24_EXP2_TBL[] = {
+    33554432,
     33919816, 34289178, 34662563, 35040014, 
     35421574, 35807290, 36197206, 36591368, 
     36989821, 37392614, 37799793, 38211406, 
@@ -42,20 +44,44 @@ const uint32_t FIX24_EXP2_TBL[] = {
     57046103, 57667294, 58295250, 58930044, 
     59571750, 60220444, 60876201, 61539100, 
     62209216, 62886630, 63571421, 64263668, 
-    64963454, 65670859, 66385968
+    64963454, 65670859, 66385968, 67108864
 };
 
 
-const size_t LOG2_TBL_SIZE = sizeof(FIX24_LOG2_TBL) / sizeof(FIX24_LOG2_TBL[0]);
-const size_t EXP2_TBL_SIZE = sizeof(FIX24_EXP2_TBL) / sizeof(FIX24_EXP2_TBL[0]);
+fix24_t interpolate_table(fix24_t x, const uint32_t *tbl, uint8_t tbl_degree)
+{
+    /*
+    Look up f(x) in tbl, using linear interpolation if x
+    falls between entries of tbl.  tbl entries are
+    assumed to supply f(x) for evenly-spaced x in [1, 2].
+
+    Because we've shifted x to lie in [1, 2) (in +7.24
+    representation), we know that bit 24 is 1, and
+    25-31 are 0.  The highest degree bits of x 
+    (not including bit 24) give us the lowest index
+    into the lookup table, i0.  The remainder of x
+    gives us the interpolation fraction between tbl[i0]
+    and tbl[i0+1].
+    */
+    fix24_t xd, rem, y, y0, y1;
+    uint32_t i0;
+
+    xd = x - FIX24_1;
+    i0 = xd.rawVal >> (24 - tbl_degree);
+    rem.rawVal = (xd.rawVal - (i0 << (24 - tbl_degree))) << tbl_degree;
+
+    y0.rawVal = tbl[i0];
+    y1.rawVal = tbl[i0 + 1];
+
+    y = y0 + (y1 - y0)*rem;
+
+    return y;
+}
 
 
 fix24_t log2(fix24_t x)
 {
-    fix24_t n;
-    uint32_t i0;
-    fix24_t xd, rem;
-    fix24_t y0, y1, y;
+    fix24_t n, y;
 
     // Using the relation log2(x) = n + log2(x/2^n),
     // scale x to lie in [1, 2)
@@ -65,37 +91,7 @@ fix24_t log2(fix24_t x)
     for (; x < FIX24_1; x.rawVal <<= 1)
         n -= FIX24_1;
 
-    /*
-    Use a lookup table to approximate log2(x/2^n)
-    Because we've shifted x to lie in [1, 2) (in +7.24
-    representation), we know that bit 24 is 1, and
-    25-31 are 0.  The highest degree bits of x 
-    (not including bit 24) give us the lowest index
-    into the lookup table, i0.  The remainder of x
-    gives us the interpolation fraction between tbl[i0]
-    and tbl[i0+1].
-    */
-    xd = x - FIX24_1;
-    i0 = xd.rawVal >> (24 - LOG2_TBL_DEGREE);
-    rem.rawVal = (xd.rawVal - (i0 << (24 - LOG2_TBL_DEGREE))) << LOG2_TBL_DEGREE;
-
-    if (i0 == 0)
-    {
-        y0 = FIX24_0;
-        y1.rawVal = FIX24_LOG2_TBL[0];
-    }
-    else if (i0 == LOG2_TBL_SIZE - 1)
-    {
-        y0.rawVal = FIX24_LOG2_TBL[i0 - 1];
-        y1 = FIX24_1;
-    }
-    else
-    {
-        y0.rawVal = FIX24_LOG2_TBL[i0 - 1];
-        y1.rawVal = FIX24_LOG2_TBL[i0];
-    }
-
-    y = y0 + (y1 - y0)*rem;
+    y = interpolate_table(x, FIX24_LOG2_TBL, LOG2_TBL_DEGREE);
 
     return n + y;
 }
@@ -110,48 +106,19 @@ fix24_t exp2(fix24_t x)
         return FIX24_1;
 
     int8_t n;
+    fix24_t y;
 
     // Determine the number of squaring steps that will 
     // be required at the end
     n = 0;
-    for (; x > FIX24_2; x.rawVal >>= 1)
+    for (; x >= FIX24_2; x.rawVal >>= 1)
         n++;
     for (; x < FIX24_1; x.rawVal <<= 1)
         n--;
 
-    uint32_t i0;
-    fix24_t xd, rem;
-    fix24_t y0, y1, y;
-
     // Estimate y = 2^x using the table
-    xd = x - FIX24_1;
-    i0 = xd.rawVal >> (24 - EXP2_TBL_DEGREE);
-    rem.rawVal = (xd.rawVal - (i0 << (24 - EXP2_TBL_DEGREE))) << EXP2_TBL_DEGREE;
+    y = interpolate_table(x, FIX24_EXP2_TBL, EXP2_TBL_DEGREE);
 
-    if (i0 == 0)
-    {
-        y0 = FIX24_2;
-        y1.rawVal = FIX24_EXP2_TBL[0];
-    }
-    else if (i0 == EXP2_TBL_SIZE)
-    {
-        y = FIX24_4;
-        goto exp2_final;
-    }
-    else if (i0 == EXP2_TBL_SIZE - 1)
-    {
-        y0.rawVal = FIX24_EXP2_TBL[i0 - 1];
-        y1 = FIX24_4;
-    }
-    else
-    {
-        y0.rawVal = FIX24_EXP2_TBL[i0 - 1];
-        y1.rawVal = FIX24_EXP2_TBL[i0];
-    }
-
-    y = y0 + (y1 - y0)*rem;
-
-exp2_final:
     // Perform the final squaring / square root steps
     for (; n > 0; n--)
         y = y * y;
@@ -185,6 +152,7 @@ fix24_t sqrt(fix24_t x)
     // y is in [1, 2).  Start with a guess of
     // y = 1, unrolling the first iteration
     // as many of the values are constant.
+    // Implicit: y = FIX24_1;
     error = FIX24_1 - x;
     y = FIX24_1 - error / FIX24_2;
     error = y*y - x;

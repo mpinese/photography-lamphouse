@@ -1,3 +1,8 @@
+#define _TASK_TIMECRITICAL
+#define _TASK_STATUS_REQUEST
+#define _TASK_LTS_POINTER
+#include <TaskScheduler.h>
+
 #include "Adafruit_ILI9341_STM.h"
 
 #define  USE_FONT_12X20

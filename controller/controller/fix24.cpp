@@ -5,7 +5,7 @@
 using namespace Fp;
 
 
-const uint8_t LOG2_TBL_DEGREE = 6;
+const uint8_t LOG2_TBL_DEGREE = 6;      // degree = log2(len(tbl)-1)
 const uint32_t FIX24_LOG2_TBL[] = {
     0, 
       375270,   744810,  1108793,  1467383,  
@@ -26,7 +26,7 @@ const uint32_t FIX24_LOG2_TBL[] = {
     16203172, 16396036, 16587377, 16777216
 };
 
-const uint8_t EXP2_TBL_DEGREE = 6;
+const uint8_t EXP2_TBL_DEGREE = 6;      // degree = log2(len(tbl)-1)
 const uint32_t FIX24_EXP2_TBL[] = {
     33554432,
     33919816, 34289178, 34662563, 35040014, 
@@ -84,7 +84,8 @@ fix24_t log2(fix24_t x)
     fix24_t n, y;
 
     // Using the relation log2(x) = n + log2(x/2^n),
-    // scale x to lie in [1, 2)
+    // scale x to lie in [1, 2).  For large x this
+    // can be sped up by the inclusion of larger jumps.
     n = FIX24_0;
     for (; x >= FIX24_2; x.rawVal >>= 1)
         n += FIX24_1;
@@ -109,7 +110,8 @@ fix24_t exp2(fix24_t x)
     fix24_t y;
 
     // Determine the number of squaring steps that will 
-    // be required at the end
+    // be required at the end.  For large x this
+    // can be sped up by the inclusion of larger jumps.
     n = 0;
     for (; x >= FIX24_2; x.rawVal >>= 1)
         n++;
@@ -140,7 +142,9 @@ fix24_t sqrt(fix24_t x)
     fix24_t error;
 
     // Scale x to lie in [1, 4), by successive
-    // multiplications or divisions by 4.
+    // multiplications or divisions by 4.  For 
+    // large x this can be sped up by the inclusion 
+    // of larger jumps.
     n = 0;
     for (; x < FIX24_1; x.rawVal <<= 2)
         n--;
@@ -172,4 +176,12 @@ fix24_t sqrt(fix24_t x)
         y.rawVal >>= (-n);
 
     return y;
+}
+
+
+fix24_t zapsmall(fix24_t x)
+{
+    if (x < FIX24_EPS && x > -FIX24_EPS)
+        x = FIX24_0;
+    return x;
 }

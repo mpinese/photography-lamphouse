@@ -16,16 +16,16 @@ extern "C" {
 #include "exptimer.h"
 
 
-const uint8_t TFT_CS = PC15;
-const uint8_t TFT_DC = PC14;
-const uint8_t TFT_RST = PC13;
-const uint8_t CHANNEL_RED = PA10;
-const uint8_t CHANNEL_GRN = PA9;
 const uint8_t CHANNEL_BLU = PA8;
-const uint8_t ROTENC_A = ;
-const uint8_t ROTENC_B = ;
-const uint8_t ROTENC_SW = ;
-const uint8_t BUZZER = ;
+const uint8_t CHANNEL_GRN = PA9;
+const uint8_t CHANNEL_RED = PA10;
+const uint8_t BUZZER = PA15;
+const uint8_t ROTENC_A = PB3;
+const uint8_t ROTENC_B = PB4;
+const uint8_t ROTENC_SW = PB5;
+const uint8_t TFT_RST = PC13;
+const uint8_t TFT_DC = PC14;
+const uint8_t TFT_CS = PC15;
 
 
 
@@ -35,12 +35,106 @@ UG_GUI gui;
 
 Scheduler scheduler;
 
-// 
+
+// TASK_SECOND         Task interval of 1 second
+// TASK_MINUTE         Task interval of 1 minute
+// TASK_HOUR           Task interval of 1 hour
+// TASK_FOREVER        Task number of iterations for infinite number of iterations
+// TASK_ONCE           Task single iteration
+// TASK_IMMEDIATE      Task interval for immediate execution
 void task_monitor_encoder();
+void task_monitor_switch();
+void task_
+
 
 Task tMonitorEncoder(10, TASK_FOREVER, &task_monitor_encoder, &scheduler);
 
 
+
+void task_monitor_encoder()
+{
+    // State data, in bit mask.  Format:
+    // Bit 7|6|5|4|3|2|1|0
+    //     .|c|.|C|a|b|A|B
+    // A: Last debounced state of the A quadrature signal
+    // B: Last debounced state of the B quadrature signal
+    // a: Holding location for new value of A
+    // b: Holding location for new value of B
+    // C: Was the last registered movement clockwise?
+    // c: Holding location for new value of C
+    // .: Unused
+    static uint8_t state;
+
+    // Debounce mask.  Format:
+    // Bit 7654|3210
+    //     aaaa|bbbb
+    // aaaa: Debounce buffer for A quadrature signal
+    // bbbb: Debounce buffer for B quadrature signal
+    static uint8_t debounce_mask;
+
+    // Handle A and B debounce
+    debounce_mask = (debounce_mask & 0b01110111) << 1;
+    debounce_mask |= digitalRead(ROTENC_A) << 4;
+    debounce_mask |= digitalRead(ROTENC_B);
+
+    bool A_hi, B_hi, A_lo, B_lo;
+    A_hi = debounce_mask & 0b00001111 == 0b00001111;
+    A_lo = debounce_mask & 0b00001111 == 0b00000000;
+    B_hi = debounce_mask & 0b11110000 == 0b11110000;
+    B_lo = debounce_mask & 0b11110000 == 0b00000000;
+
+    // Return immediately if the switch is still bouncing.
+    if (!(A_hi || A_lo) || !(B_hi || B_lo))
+        return;
+
+    // Load the new values of a and b into state
+    state = (state & 0b10011) | (A_hi << 3) | (B_hi << 2);
+
+    // Handle the state transitions
+    // Encoder transitions (. is low, # is high, clockwise
+    // rotation from L to R, two revolutions):
+    // A  ..##..##
+    // B  .##..##.
+    //    01320132  <-- state & 0b11
+    int8_t rot;     // Steps rotated.  Positive => clockwise
+
+    // Initialise a default value corresponding to two steps
+    // in the previously observed direction.  This is a 
+    // reasonable default for ambiguous transitions, which 
+    // are handled by bare break statements in the switch below.
+    if (state & 0x10000)
+        rot = +2;
+    else
+        rot = -2;
+
+    switch (state & 0b01111)
+    {
+        case 0b0000:           return;   // No change in state
+        case 0b0001: rot = -1; break;    // 1->0 CCW
+        case 0b0010: rot = +1; break;    // 2->0 CW
+        case 0b0011:           break;    // 3->0 Ambiguous
+        case 0b0100: rot = +1; break;    // 0->1 CW
+        case 0b0101:           return;   // No change in state
+        case 0b0110:           break;    // 2->1 Ambiguous
+        case 0b0111: rot = -1; break;    // 3->1 CCW
+        case 0b1000: rot = -1; break;    // 0->2 CCW
+        case 0b1001:           break;    // 1->2 Ambiguous
+        case 0b1010:           return;   // No change in state
+        case 0b1011: rot = +1; break;    // 3->2 CW
+        case 0b1100:           break;    // 0->3 Ambiguous
+        case 0b1101: rot = +1; break;    // 1->3 CW
+        case 0b1110: rot = -1; break;    // 2->3 CCW
+        case 0b1111:           return;   // No change in state
+    }
+
+    // TODO: Dispatch tasks to handle the rotation.
+    if (rot > 0)
+        else
+    rot ? x : y;
+
+    // Update the state.
+    state = ((state & 0b00001100) | ((rot > 0) << 7)) >> 2;
+}
 
 
 void ugui_driver_pset(UG_S16 x, UG_S16 y, UG_COLOR c)
@@ -111,15 +205,8 @@ void setup()
     UG_DriverEnable(DRIVER_FILL_FRAME);
 
     Serial.println("Initialising scheduler...")
-    scheduler.
-    scheduler.enableAll(true);
-//    scheduler.init();  Not required -- done in constructor
-// TASK_SECOND         Task interval of 1 second
-// TASK_MINUTE         Task interval of 1 minute
-// TASK_HOUR           Task interval of 1 hour
-// TASK_FOREVER        Task number of iterations for infinite number of iterations
-// TASK_ONCE           Task single iteration
-// TASK_IMMEDIATE      Task interval for immediate execution
+    tMonitorEncoder.enable();
+
 
 
     UG_FillScreen(C_BLACK);

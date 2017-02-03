@@ -1,5 +1,9 @@
 #pragma once
 
+#include <stdint.h>
+#include <wirish.h>
+
+
 class Ports
 {
 public:
@@ -14,7 +18,7 @@ public:
 	static const int8_t TFT_CS = PC15;
 
 
-	void setup()
+	static void setup()
 	{
 	    pinMode(CHANNEL_RED, PWM);
 	    pinMode(CHANNEL_GRN, PWM);
@@ -28,6 +32,3 @@ public:
 	}
 
 };
-
-
-Ports ports;

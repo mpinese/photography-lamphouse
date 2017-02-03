@@ -57,8 +57,6 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 // Fixed-point configuration file
 #include "Config.hpp"
 
-// Port-specific code
-#include "Port.hpp"
 
 namespace Fp
 {

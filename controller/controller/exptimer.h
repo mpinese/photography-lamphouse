@@ -15,6 +15,7 @@ private:
 public:
   fix24_t change_log2H(fix24_t delta);
   fix24_t change_log2t(fix24_t delta);
+  fix24_t change_t(fix24_t delta);
 
   fix24_t set_N(fix24_t new_N);
   fix24_t set_s(fix24_t new_s);

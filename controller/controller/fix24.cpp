@@ -162,7 +162,7 @@ fix24_t sqrt(fix24_t x)
     error = y*y - x;
 
     // Perform the Raphson updates
-    while (fabs(error) > FIX24_SQRT_EPS)
+    while (fabs(error) > FIX24_EPS)
     {
         y -= error / (FIX24_2*y);
         error = y*y - x;

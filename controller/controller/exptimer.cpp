@@ -99,11 +99,11 @@ fix24_t Exposure::change_t(fix24_t delta)
 {
     fix24_t target_time, log2_target_time, log2_target_delta, realised_time, realised_delta;
     
-    target_time = exp(log2t) + delta;
+    target_time = exp2(log2t) + delta;
     log2_target_time = log2(target_time);
     log2_target_delta = log2_target_time - log2t;
     change_log2t(log2_target_delta);
-    realised_time = exp(log2t);
+    realised_time = exp2(log2t);
     realised_delta = target_time - realised_time;
     
     return zapsmall(realised_delta);

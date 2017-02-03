@@ -22,7 +22,6 @@ const uint8_t CHANNEL_RED = PA10;
 const uint8_t BUZZER = PA15;
 const uint8_t ROTENC_A = PB3;
 const uint8_t ROTENC_B = PB4;
-const uint8_t ROTENC_SW = PB5;
 const uint8_t TFT_RST = PC13;
 const uint8_t TFT_DC = PC14;
 const uint8_t TFT_CS = PC15;
@@ -44,7 +43,6 @@ Scheduler scheduler;
 // TASK_IMMEDIATE      Task interval for immediate execution
 void task_monitor_encoder();
 void task_monitor_switch();
-void task_
 
 
 Task tMonitorEncoder(10, TASK_FOREVER, &task_monitor_encoder, &scheduler);
@@ -73,19 +71,25 @@ void task_monitor_encoder()
     static uint8_t debounce_mask;
 
     // Handle A and B debounce
-    debounce_mask = (debounce_mask & 0b01110111) << 1;
+    debounce_mask &= 0b01110111;
+    debounce_mask <<= 1;
     debounce_mask |= digitalRead(ROTENC_A) << 4;
     debounce_mask |= digitalRead(ROTENC_B);
 
     bool A_hi, B_hi, A_lo, B_lo;
-    A_hi = debounce_mask & 0b00001111 == 0b00001111;
-    A_lo = debounce_mask & 0b00001111 == 0b00000000;
-    B_hi = debounce_mask & 0b11110000 == 0b11110000;
-    B_lo = debounce_mask & 0b11110000 == 0b00000000;
+    B_hi = (debounce_mask & 0b00001111) == 0b00001111;
+    B_lo = (debounce_mask & 0b00001111) == 0b00000000;
+    A_hi = (debounce_mask & 0b11110000) == 0b11110000;
+    A_lo = (debounce_mask & 0b11110000) == 0b00000000;
 
     // Return immediately if the switch is still bouncing.
     if (!(A_hi || A_lo) || !(B_hi || B_lo))
         return;
+
+    // Serial.print("A:");
+    // Serial.print(A_hi);
+    // Serial.print("  B:");
+    // Serial.println(B_hi);
 
     // Load the new values of a and b into state
     state = (state & 0b10011) | (A_hi << 3) | (B_hi << 2);
@@ -102,7 +106,7 @@ void task_monitor_encoder()
     // in the previously observed direction.  This is a 
     // reasonable default for ambiguous transitions, which 
     // are handled by bare break statements in the switch below.
-    if (state & 0x10000)
+    if (state & 0b10000)
         rot = +2;
     else
         rot = -2;
@@ -127,10 +131,12 @@ void task_monitor_encoder()
         case 0b1111:           return;   // No change in state
     }
 
+    Serial.print("Rotary encoder signal: ");
+    Serial.println(rot);
     // TODO: Dispatch tasks to handle the rotation.
-    if (rot > 0)
-        else
-    rot ? x : y;
+//    if (rot > 0)
+  //      else
+    //rot ? x : y;
 
     // Update the state.
     state = ((state & 0b00001100) | ((rot > 0) << 7)) >> 2;
@@ -180,7 +186,7 @@ void setup()
 {
     Serial.begin(115200);
 
-    Serial.println("Initialising pins...")
+    Serial.println("Initialising pins...");
     pinMode(CHANNEL_RED, PWM);
     pinMode(CHANNEL_GRN, PWM);
     pinMode(CHANNEL_BLU, PWM);
@@ -190,21 +196,20 @@ void setup()
     pinMode(BUZZER, OUTPUT);
     pinMode(ROTENC_A, INPUT_PULLUP);
     pinMode(ROTENC_B, INPUT_PULLUP);
-    pinMode(ROTENC_SW, INPUT_PULLUP);
     
-    Serial.println("Initialising TFT driver...")
+    Serial.println("Initialising TFT driver...");
     tft.begin();
     tft.setRotation(3);
     send_display_diagnostics();
 
-    Serial.println("Initialising GUI drivers...")
+    Serial.println("Initialising GUI drivers...");
     UG_Init(&gui, ugui_driver_pset, 320, 240);
     UG_DriverRegister(DRIVER_DRAW_LINE, (void*) ugui_driver_drawline);
     UG_DriverRegister(DRIVER_FILL_FRAME, (void*) ugui_driver_fillframe);
     UG_DriverEnable(DRIVER_DRAW_LINE);
     UG_DriverEnable(DRIVER_FILL_FRAME);
 
-    Serial.println("Initialising scheduler...")
+    Serial.println("Initialising scheduler...");
     tMonitorEncoder.enable();
 
 

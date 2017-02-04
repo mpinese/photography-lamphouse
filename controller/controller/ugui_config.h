@@ -12,23 +12,23 @@
 #define USE_COLOR_RGB565   // RGB = 0bRRRRRGGGGGGBBBBB 
 
 /* Enable needed fonts here */
-//#define  USE_FONT_4X6
-//#define  USE_FONT_5X8
-//#define  USE_FONT_5X12
-//#define  USE_FONT_6X8
-//#define  USE_FONT_6X10
-//#define  USE_FONT_7X12
-//#define  USE_FONT_8X8
-//#define  USE_FONT_8X12_CYRILLIC
-//#define  USE_FONT_8X12
-#define  USE_FONT_8X14
-//#define  USE_FONT_10X16
-//#define  USE_FONT_12X16
-//#define  USE_FONT_12X20
-//#define  USE_FONT_16X26
-//#define  USE_FONT_22X36
-//#define  USE_FONT_24X40
-//#define  USE_FONT_32X53
+//#define  USE_FONT_4X6             // 1.5
+//#define  USE_FONT_5X8             // 1.6
+//#define  USE_FONT_5X12            // 2.4
+//#define  USE_FONT_6X8             // 1.3
+//#define  USE_FONT_6X10            // 1.7
+//#define  USE_FONT_7X12            // 1.7
+//#define  USE_FONT_8X8             // 1.0
+//#define  USE_FONT_8X12_CYRILLIC   // 1.5
+//#define  USE_FONT_8X12            // 1.5
+//#define  USE_FONT_8X14            // 1.8
+//#define  USE_FONT_10X16           // 1.6
+//#define  USE_FONT_12X16           // 1.3
+#define  USE_FONT_12X20           // 1.7
+//#define  USE_FONT_16X26           // 1.6
+//#define  USE_FONT_22X36           // 1.6
+#define  USE_FONT_24X40           // 1.7
+//#define  USE_FONT_32X53           // 1.7
 
 /* Specify platform-dependent integer types here */
 

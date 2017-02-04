@@ -85,9 +85,8 @@ void task_monitor_encoder()
     state = (state & 0b10011) | (A_hi << 3) | (B_hi << 2);
 
     int8_t rot = decode_rotary_encoder(state);
-
-    Serial.print("Rotary encoder signal: ");
-    Serial.println(rot);
+    if (rot == 0)
+        return;
 
     // TODO: Dispatch tasks to handle the rotation.
 

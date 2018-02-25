@@ -26,12 +26,3 @@ public:
     fix24_t get_log2N()     { return log2N2 / fix24_t(2.0); };
     fix24_t get_log2s()     { return log2s2 / fix24_t(2.0); };
 };
-
-
-struct ExposureSettings
-{
-private:
-    Exposure green, blue;
-};
-
-

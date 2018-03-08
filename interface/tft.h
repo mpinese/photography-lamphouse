@@ -2,6 +2,7 @@
 #ifndef TFT_H_
 #define TFT_H_
 
+void TFT_calibrate(void);
 void TFT_init(void);
 void TFT_loop(void);
 

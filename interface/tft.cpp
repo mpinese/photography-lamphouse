@@ -31,34 +31,14 @@
 #include "FT8.h"
 #include "FT8_commands.h"
 
-#include "tft_data.h"
-
-
-#define BLUE_1	0x5dade2L
-#define BLUE_2	0x3498dbL
-#define BLUE_3	0x2e86c1L
-#define BLUE_4	0x2874a6L
-#define BLUE_5	0x21618cL
-#define ORANGE_1	0xe6962cL
-#define GREEN_1	0x91c60eL
+#define PROGMEM
 
 /* memory-map defines */
-#define MEM_LOGO 0x00000000 /* start-address of logo, needs 2242 bytes of memory */
-#define MEM_PIC1 0x00000900 /* start of 100x100 pixel test image, needs 20000 bytes of memory */ 
 #define MEM_DL_STATIC 0x000ff000 /* start-address of the static part of the display-list, upper 4k of gfx-mem */
 
 uint32_t num_dl_static;
 
 uint8_t tft_active = 0;
-
-/* just some silly static test-data for the line-strip */
-uint8_t scope_data[64] =
-{
-	0x80, 0x80, 0x80, 0x60, 0xa0, 0x80, 0x00, 0xff, 0xa0, 0x60, 0xa0, 0x80, 0x80, 0x80, 0x80, 0x80,
-	0x80, 0x80, 0x70, 0x60, 0x50, 0x40, 0x30, 0x40, 0x50, 0x60, 0x70, 0x80, 0x80, 0x80, 0x80, 0x80,
-	0x80, 0x80, 0x7e, 0x7c, 0x7a, 0x78, 0x76, 0x74, 0x72, 0x70, 0x6e, 0x6c, 0x6a, 0x68, 0x80, 0x80,
-	0x80, 0x99, 0xa4, 0xad, 0xb1, 0xb1, 0xad, 0xa4, 0x99, 0x8e, 0x85, 0x81, 0x81, 0x85, 0x8e, 0x80,
-};
 
 
 #define LAYOUT_W 266
@@ -71,133 +51,26 @@ uint8_t scope_data[64] =
 
 void initStaticBackground()
 {
-	FT8_cmd_dl(CMD_DLSTART); /* Start the display list */
+	FT8_cmd_dl(CMD_DLSTART);
 
-	FT8_cmd_bgcolor(0x00c0c0c0); /* light grey */
-	
-	FT8_cmd_dl(VERTEX_FORMAT(0)); /* reduce precision for VERTEX2F to 1 pixel instead of 1/16 pixel default */
+    // Clear screen to black
+    FT8_cmd_dl(CLEAR_COLOR_RGB(0,0,0));
+    FT8_cmd_dl(CLEAR(1,1,1));            // Clear colour, stencils, tags
 
-	/* draw the thre rectangles on top */				
-	FT8_cmd_dl(DL_BEGIN | FT8_RECTS);
-	FT8_cmd_dl(LINE_WIDTH(1*16)); /* size is in 1/16 pixel */
+    // Set colours to red on black
+    FT8_cmd_bgcolor(COLOR_RGB(0,0,0));
+    FT8_cmd_dl(DL_COLOR_RGB | COLOR_RGB(255,0,0));
 
-	FT8_cmd_dl(DL_COLOR_RGB | BLUE_1);
-	FT8_cmd_dl(VERTEX2F(0,0));
-	FT8_cmd_dl(VERTEX2F(265,99));
-	
-	FT8_cmd_dl(DL_COLOR_RGB | BLUE_3);
-	FT8_cmd_dl(VERTEX2F(267,0));
-	FT8_cmd_dl(VERTEX2F(532,99));
+    // Reduce precision for VERTEX2F to 1 pixel instead of 1/16 pixel default
+    FT8_cmd_dl(VERTEX_FORMAT(0));
 
-	FT8_cmd_dl(DL_COLOR_RGB | BLUE_5);
-	FT8_cmd_dl(VERTEX2F(534,0));
-	FT8_cmd_dl(VERTEX2F(800,99));
-
-
-	/* draw two border-frames, just a colored rectangle and a smaller rectangle on top with background-color */
-	FT8_cmd_dl(DL_COLOR_RGB | BLUE_3);
-	FT8_cmd_dl(VERTEX2F((LAYOUT_X1+30),(LAYOUT_Y1+40)));
-	FT8_cmd_dl(VERTEX2F((LAYOUT_X1+30+130),(LAYOUT_Y1+40+70)));
-
-	FT8_cmd_dl(VERTEX2F((LAYOUT_X1+30),(LAYOUT_Y1+275)));
-	FT8_cmd_dl(VERTEX2F((LAYOUT_X1+30+130),(LAYOUT_Y1+275+70)));
-
-	FT8_cmd_dl(DL_COLOR_RGB | WHITE);
-	FT8_cmd_dl(VERTEX2F((LAYOUT_X1+30+5),(LAYOUT_Y1+45)));
-	FT8_cmd_dl(VERTEX2F((LAYOUT_X1+30+130-5),(LAYOUT_Y1+45+60)));
-
-	FT8_cmd_dl(VERTEX2F((LAYOUT_X1+30+5),(LAYOUT_Y1+280)));
-	FT8_cmd_dl(VERTEX2F((LAYOUT_X1+30+130-5),(LAYOUT_Y1+280+60)));
-
-	FT8_cmd_dl(DL_END);
-
-	/* display the logo */
-	FT8_cmd_dl(DL_BEGIN | FT8_BITMAPS);
-	FT8_cmd_setbitmap(MEM_LOGO, FT8_L8, 38, 59);
-	FT8_cmd_dl(VERTEX2F((LAYOUT_X3 + ((LAYOUT_W - 38) / 2)) , 20));
-	FT8_cmd_dl(DL_END);
-
-	FT8_cmd_dl(DL_BEGIN | FT8_BITMAPS);
-	FT8_cmd_setbitmap(MEM_PIC1, FT8_RGB565, 100, 100);
-	FT8_cmd_dl(VERTEX2F((LAYOUT_X3 + 150) , (LAYOUT_Y1 + 50) ));
-	FT8_cmd_dl(DL_END);
-
+    // Text
 	FT8_cmd_text(LAYOUT_X2 + (LAYOUT_W / 2), 40, 29, FT8_OPT_CENTERX, "FT81x Test");
 
-	/* display an invisible rectangle where the slider is displayed to improve the touch-handling */
-	FT8_cmd_dl(TAG(10));
-	FT8_cmd_rect(LAYOUT_X1+(5*(LAYOUT_W/6))-25,LAYOUT_Y1+40,LAYOUT_X1+(5*(LAYOUT_W/6))+25,LAYOUT_Y1+40+300,1);
-	FT8_cmd_dl(TAG(0));
-
-	/* some black lines to seperate things */
-	FT8_cmd_dl(DL_COLOR_RGB | BLACK);
-	FT8_cmd_dl(DL_BEGIN | FT8_LINES);
-	FT8_cmd_dl(VERTEX2F(0,100));
-	FT8_cmd_dl(VERTEX2F(800,100));
-
-	FT8_cmd_dl(VERTEX2F(266,0));
-	FT8_cmd_dl(VERTEX2F(266,480));
-
-	FT8_cmd_dl(VERTEX2F(533,0));
-	FT8_cmd_dl(VERTEX2F(533,480));
-
-	FT8_cmd_dl(VERTEX2F((LAYOUT_X1+(5*(LAYOUT_W/6))-45),(LAYOUT_Y1+40+150)));
-	FT8_cmd_dl(VERTEX2F((LAYOUT_X1+(5*(LAYOUT_W/6))+25),(LAYOUT_Y1+40+150)));
-
-	FT8_cmd_dl(DL_END);
-
-	/* display a "button" consisting of two overlapping points */
-	FT8_cmd_dl(DL_BEGIN | FT8_POINTS);
-	FT8_cmd_dl(DL_COLOR_RGB | 0x00aaaaaa);
-	FT8_cmd_dl(POINT_SIZE(25*16));
-	FT8_cmd_dl(TAG(11));
-	FT8_cmd_dl(VERTEX2F((LAYOUT_X1+(LAYOUT_W/2)),(LAYOUT_Y1+40+150)));
-	FT8_cmd_dl(DL_COLOR_RGB | 0x00af00);
-	FT8_cmd_dl(POINT_SIZE(20*16));
-	FT8_cmd_dl(VERTEX2F((LAYOUT_X1+(LAYOUT_W/2)),(LAYOUT_Y1+40+150)));
-	FT8_cmd_dl(DL_END);
-
-	FT8_cmd_dl(TAG(0));
-
-	FT8_cmd_dl(DL_COLOR_RGB | BLACK);
-	
-	/* add some static text to the list */
-	FT8_cmd_text(LAYOUT_X1+(LAYOUT_W/3), LAYOUT_Y1+10, 28, FT8_OPT_CENTERX, "Unit 1");
-
-	FT8_cmd_text(LAYOUT_X1+175,LAYOUT_Y1+6, 26, 0, "U =");
-	FT8_cmd_text(LAYOUT_X1+175+20+1+32+4,LAYOUT_Y1+6, 26, 0, "V");
-
-	FT8_cmd_text(LAYOUT_X2-30,LAYOUT_Y1+30, 26, 0, "70V");
-	FT8_cmd_text(LAYOUT_X2-30,LAYOUT_Y1+30+310, 26, 0, "10V");
-
-	FT8_cmd_text(LAYOUT_X1+40, LAYOUT_Y1+45, 27, 0, "U");
-	FT8_cmd_text(LAYOUT_X1+40+11+1, LAYOUT_Y1+45+10, 26, 0, "X1");
-	FT8_cmd_text(LAYOUT_X1+40+11+1+20+1, LAYOUT_Y1+45, 27, 0, "=");
-	FT8_cmd_text(LAYOUT_X1+40+11+1+20+1+9+1+50+1, LAYOUT_Y1+45, 27, 0, "V");
-
-	FT8_cmd_text(LAYOUT_X1+40, LAYOUT_Y1+45+30, 27, 0, "I");
-	FT8_cmd_text(LAYOUT_X1+40+11+1, LAYOUT_Y1+45+30+10, 26, 0, "X1");
-	FT8_cmd_text(LAYOUT_X1+40+11+1+20+1, LAYOUT_Y1+45+30, 27, 0, "=");
-	FT8_cmd_text(LAYOUT_X1+40+11+1+20+1+9+1+50+1, LAYOUT_Y1+45+30, 27, 0, "A");
-
-	FT8_cmd_text(LAYOUT_X1+40, LAYOUT_Y1+280, 27, 0, "U");
-	FT8_cmd_text(LAYOUT_X1+40+11+1, LAYOUT_Y1+280+10, 26, 0, "X2");
-	FT8_cmd_text(LAYOUT_X1+40+11+1+20+1, LAYOUT_Y1+280, 27, 0, "=");
-	FT8_cmd_text(LAYOUT_X1+40+11+1+20+1+9+1+50+1, LAYOUT_Y1+280, 27, 0, "V");
-
-	FT8_cmd_text(LAYOUT_X1+40, LAYOUT_Y1+280+30, 27, 0, "I");
-	FT8_cmd_text(LAYOUT_X1+40+11+1, LAYOUT_Y1+280+30+10, 26, 0, "X2");
-	FT8_cmd_text(LAYOUT_X1+40+11+1+20+1, LAYOUT_Y1+280+30, 27, 0, "=");
-	FT8_cmd_text(LAYOUT_X1+40+11+1+20+1+9+1+50+1, LAYOUT_Y1+280+30, 27, 0, "A");
-
-
-	FT8_cmd_dl(DL_COLOR_RGB | BLACK);
+	FT8_cmd_dl(DL_COLOR_RGB | COLOR_RGB(255,0,0));
 
 	FT8_cmd_text(LAYOUT_X3+150,LAYOUT_Y1+20, 16, 0, "Font 16");
 	FT8_cmd_text(LAYOUT_X3+150,LAYOUT_Y1+30, 18, 0, "Font 18");
-	FT8_cmd_text(LAYOUT_X3+20,LAYOUT_Y1+20, 20, 0, "Font 20");
-	FT8_cmd_text(LAYOUT_X3+20,LAYOUT_Y1+30, 21, 0, "Font 21");
-	FT8_cmd_text(LAYOUT_X3+20,LAYOUT_Y1+45, 22, 0, "Font 22");
 	FT8_cmd_text(LAYOUT_X3+20,LAYOUT_Y1+60, 23, 0, "Font 23");
 	FT8_cmd_text(LAYOUT_X3+20,LAYOUT_Y1+80, 24, 0, "Font 24");
 	FT8_cmd_text(LAYOUT_X3+20,LAYOUT_Y1+100, 25, 0, "Font 25");
@@ -217,79 +90,12 @@ void initStaticBackground()
 	FT8_cmd_text(LAYOUT_X3+150,LAYOUT_Y1+140, 1, 0, "34");
 #endif
 
-
 	FT8_cmd_execute();
 	
 	num_dl_static = FT8_memRead16(REG_CMD_DL);
 
 	FT8_cmd_memcpy(MEM_DL_STATIC, FT8_RAM_DL, num_dl_static);
 	FT8_cmd_execute();
-}
-
-
-void TFT_init(void)
-{
-	if(FT8_init() != 0)
-	{
-		tft_active = 1;
-
-		/* send pre-recorded touch calibration values, RVT70 */
-		FT8_memWrite32(REG_TOUCH_TRANSFORM_A, 0x000074df);
-		FT8_memWrite32(REG_TOUCH_TRANSFORM_B, 0x000000e6);
-		FT8_memWrite32(REG_TOUCH_TRANSFORM_C, 0xfffd5474);
-		FT8_memWrite32(REG_TOUCH_TRANSFORM_D, 0x000001af);
-		FT8_memWrite32(REG_TOUCH_TRANSFORM_E, 0x00007e79);
-		FT8_memWrite32(REG_TOUCH_TRANSFORM_F, 0xffe9a63c);
-
-#if 0
- 		/* calibrate touch and displays values to screen */
-		FT8_cmd_dl(CMD_DLSTART);
-		FT8_cmd_dl(DL_CLEAR_RGB | BLACK);
-		FT8_cmd_dl(DL_CLEAR | CLR_COL | CLR_STN | CLR_TAG);
-		FT8_cmd_text((FT8_HSIZE/2), (FT8_VSIZE/2), 27, FT8_OPT_CENTER, "Please tap on the dot.");
-		FT8_cmd_calibrate();
-		FT8_cmd_dl(DL_DISPLAY);
-		FT8_cmd_dl(CMD_SWAP);
-		FT8_cmd_execute();
-
-		uint32_t touch_a, touch_b, touch_c, touch_d, touch_e, touch_f;
-
-		touch_a = FT8_memRead32(REG_TOUCH_TRANSFORM_A);
-		touch_b = FT8_memRead32(REG_TOUCH_TRANSFORM_B);
-		touch_c = FT8_memRead32(REG_TOUCH_TRANSFORM_C);
-		touch_d = FT8_memRead32(REG_TOUCH_TRANSFORM_D);
-		touch_e = FT8_memRead32(REG_TOUCH_TRANSFORM_E);
-		touch_f = FT8_memRead32(REG_TOUCH_TRANSFORM_F);
-
-		FT8_cmd_dl(CMD_DLSTART);
-		FT8_cmd_dl(DL_CLEAR_RGB | BLACK);
-		FT8_cmd_dl(DL_CLEAR | CLR_COL | CLR_STN | CLR_TAG);
-		FT8_cmd_dl(TAG(0));
-
-		FT8_cmd_text(5, 30, 28, 0, "TOUCH_TRANSFORM_A:");
-		FT8_cmd_text(5, 50, 28, 0, "TOUCH_TRANSFORM_B:");
-		FT8_cmd_text(5, 70, 28, 0, "TOUCH_TRANSFORM_C:");
-		FT8_cmd_text(5, 90, 28, 0, "TOUCH_TRANSFORM_D:");
-		FT8_cmd_text(5, 110, 28, 0, "TOUCH_TRANSFORM_E:");
-		FT8_cmd_text(5, 130, 28, 0, "TOUCH_TRANSFORM_F:");
-
-#ifdef FT8_81X_ENABLE
-		FT8_cmd_setbase(16L); /* FT81x only */
-#endif
-		FT8_cmd_number(250, 30, 28, 0, touch_a);
-		FT8_cmd_number(250, 50, 28, 0, touch_b);
-		FT8_cmd_number(250, 70, 28, 0, touch_c);
-		FT8_cmd_number(250, 90, 28, 0, touch_d);
-		FT8_cmd_number(250, 110, 28, 0, touch_e);
-		FT8_cmd_number(250, 130, 28, 0, touch_f);
-
-		FT8_cmd_dl(DL_DISPLAY);	/* instruct the graphics processor to show the list */
-		FT8_cmd_dl(CMD_SWAP); /* make this list active */
-		FT8_cmd_execute();
-#endif
-
-		initStaticBackground();
-	}
 }
 
 
@@ -436,22 +242,11 @@ void TFT_loop(void)
 					}
 				}
 
-				for(counter=0;counter<63;counter++)
-				{
-					FT8_cmd_dl(VERTEX2F( (LAYOUT_X2 + 12 + (counter * 4)) , (LAYOUT_Y1 + 20 + scope_data[(counter+strip_offset) & 0x3f]) )); /* x/y are in 1/16 pixel */
-				}
-
 				FT8_cmd_dl(DL_END);
 
 				FT8_cmd_dl(DL_COLOR_RGB | 0x00aaaaaa);
 
 				FT8_cmd_dl(DL_BEGIN | FT8_RECTS);
-
-				for(counter=0;counter<15;counter++)
-				{
-					FT8_cmd_dl(VERTEX2F( (LAYOUT_X2 + 10 + (counter*16) ), ((400 + (scope_data[(counter+strip_offset) & 0x3f] & 0x3f)) )));
-					FT8_cmd_dl(VERTEX2F( (LAYOUT_X2 + 10 + (counter*16) +16) ,480) );
-				}
 				
 				FT8_cmd_dl(DL_END);
 
@@ -466,3 +261,80 @@ void TFT_loop(void)
 		delay &= 0x01; /* -> delay toggles between 0 and 1 */
 	}
 }
+
+
+
+
+void TFT_calibrate()
+{
+     /* calibrate touch and displays values to screen */
+    FT8_cmd_dl(CMD_DLSTART);
+    FT8_cmd_dl(DL_CLEAR_RGB | BLACK);
+    FT8_cmd_dl(DL_CLEAR | CLR_COL | CLR_STN | CLR_TAG);
+    FT8_cmd_text((FT8_HSIZE/2), (FT8_VSIZE/2), 27, FT8_OPT_CENTER, "Please tap on the dot.");
+    FT8_cmd_calibrate();
+    FT8_cmd_dl(DL_DISPLAY);
+    FT8_cmd_dl(CMD_SWAP);
+    FT8_cmd_execute();
+
+    uint32_t touch_a, touch_b, touch_c, touch_d, touch_e, touch_f;
+
+    touch_a = FT8_memRead32(REG_TOUCH_TRANSFORM_A);
+    touch_b = FT8_memRead32(REG_TOUCH_TRANSFORM_B);
+    touch_c = FT8_memRead32(REG_TOUCH_TRANSFORM_C);
+    touch_d = FT8_memRead32(REG_TOUCH_TRANSFORM_D);
+    touch_e = FT8_memRead32(REG_TOUCH_TRANSFORM_E);
+    touch_f = FT8_memRead32(REG_TOUCH_TRANSFORM_F);
+
+    FT8_cmd_dl(CMD_DLSTART);
+    FT8_cmd_dl(DL_CLEAR_RGB | BLACK);
+    FT8_cmd_dl(DL_CLEAR | CLR_COL | CLR_STN | CLR_TAG);
+    FT8_cmd_dl(TAG(0));
+
+    FT8_cmd_text(5, 30, 28, 0, "TOUCH_TRANSFORM_A:");
+    FT8_cmd_text(5, 50, 28, 0, "TOUCH_TRANSFORM_B:");
+    FT8_cmd_text(5, 70, 28, 0, "TOUCH_TRANSFORM_C:");
+    FT8_cmd_text(5, 90, 28, 0, "TOUCH_TRANSFORM_D:");
+    FT8_cmd_text(5, 110, 28, 0, "TOUCH_TRANSFORM_E:");
+    FT8_cmd_text(5, 130, 28, 0, "TOUCH_TRANSFORM_F:");
+
+#ifdef FT8_81X_ENABLE
+    FT8_cmd_setbase(16L); /* FT81x only */
+#endif
+    FT8_cmd_number(250, 30, 28, 0, touch_a);
+    FT8_cmd_number(250, 50, 28, 0, touch_b);
+    FT8_cmd_number(250, 70, 28, 0, touch_c);
+    FT8_cmd_number(250, 90, 28, 0, touch_d);
+    FT8_cmd_number(250, 110, 28, 0, touch_e);
+    FT8_cmd_number(250, 130, 28, 0, touch_f);
+
+    FT8_cmd_dl(DL_DISPLAY); /* instruct the graphics processor to show the list */
+    FT8_cmd_dl(CMD_SWAP);   /* make this list active */
+    FT8_cmd_execute();
+    while(1);               // Display values until reset.
+}
+
+
+void TFT_init(void)
+{
+    if(FT8_init() != 0)
+    {
+        tft_active = 1;
+
+        /* send pre-recorded touch calibration values, RVT70 */
+        FT8_memWrite32(REG_TOUCH_TRANSFORM_A, 0x00010ad7);
+        FT8_memWrite32(REG_TOUCH_TRANSFORM_B, 0x00000000);
+        FT8_memWrite32(REG_TOUCH_TRANSFORM_C, 0xffe9d9a5);
+        FT8_memWrite32(REG_TOUCH_TRANSFORM_D, 0x00000049);
+        FT8_memWrite32(REG_TOUCH_TRANSFORM_E, 0x00010750);
+        FT8_memWrite32(REG_TOUCH_TRANSFORM_F, 0xfff85903);
+
+        initStaticBackground();
+
+        // Dim backlight for darkroom use
+        // FT8_memWrite8(REG_PWM_DUTY, 5);
+        // Bright backlight for testing
+        FT8_memWrite8(REG_PWM_DUTY, 60);
+    }
+}
+

@@ -1,6 +1,6 @@
 /*
     Copyright (c) 2007 Stefan Engelke <mbox@stefanengelke.de>
-	Portions Copyright (C) 2011 Greg Copeland
+    Portions Copyright (C) 2011 Greg Copeland
 
     Permission is hereby granted, free of charge, to any person
     obtaining a copy of this software and associated documentation
@@ -24,7 +24,7 @@
 */
 
 /* Memory Map */
-#define CONFIG      0x00
+#define NRF_CONFIG      0x00
 #define EN_AA       0x01
 #define EN_RXADDR   0x02
 #define SETUP_AW    0x03
@@ -48,8 +48,8 @@
 #define RX_PW_P4    0x15
 #define RX_PW_P5    0x16
 #define FIFO_STATUS 0x17
-#define DYNPD	    0x1C
-#define FEATURE	    0x1D
+#define DYNPD       0x1C
+#define FEATURE     0x1D
 
 /* Bit Mnemonics */
 #define MASK_RX_DR  6
@@ -89,13 +89,13 @@
 #define TX_EMPTY    4
 #define RX_FULL     1
 #define RX_EMPTY    0
-#define DPL_P5	    5
-#define DPL_P4	    4
-#define DPL_P3	    3
-#define DPL_P2	    2
-#define DPL_P1	    1
-#define DPL_P0	    0
-#define EN_DPL	    2
+#define DPL_P5      5
+#define DPL_P4      4
+#define DPL_P3      3
+#define DPL_P2      2
+#define DPL_P1      1
+#define DPL_P0      0
+#define EN_DPL      2
 #define EN_ACK_PAY  1
 #define EN_DYN_ACK  0
 
@@ -111,7 +111,7 @@
 #define FLUSH_TX      0xE1
 #define FLUSH_RX      0xE2
 #define REUSE_TX_PL   0xE3
-#define NOP           0xFF
+#define RF24_NOP      0xFF
 
 /* Non-P omissions */
 #define LNA_HCURR   0

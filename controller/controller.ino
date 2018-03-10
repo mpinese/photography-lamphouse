@@ -3,6 +3,7 @@
 
 #include "shared.h"
 
+#undef DEBUG
 
 /* Notes:
  *  Timing logic susceptible to overflow.  Will only be a problem if system is on
@@ -30,7 +31,7 @@ struct ControllerInternalStatus
     uint32_t end_millis;
 };
 
-
+#ifdef DEBUG
 struct ControllerExternalStatus
 {
     ControllerState state;
@@ -38,6 +39,7 @@ struct ControllerExternalStatus
     uint32_t target_millis;
     uint32_t achieved_millis;
 };
+#endif
 
 
 
@@ -54,6 +56,12 @@ CommsMessage set_exposure(const RadioPacket* in_packet);
 CommsMessage start_exposure();
 CommsMessage stop_exposure();
 
+#ifdef DEBUG
+CommsMessage interpret_packet(const uint8_t* returned_packet, ControllerExternalStatus* controller_status);
+void print_packet_raw(const RadioPacket* packet);
+void print_packet(const RadioPacket* packet);
+#endif
+
 
 static RF24 _radio(PIN_RADIO_CE, PIN_RADIO_CSN);
 static ControllerInternalStatus _state;
@@ -61,12 +69,16 @@ static ControllerInternalStatus _state;
 
 void setup()
 {
+#ifdef DEBUG
     Serial.begin(115200);
+#endif
 
     initialise_outputs();
     initialise_radio();
 
+#ifdef DEBUG
     Serial.println("Controller: Init done");
+#endif
 }
 
 
@@ -96,7 +108,11 @@ void initialise_radio()
     _radio.setRetries(15,15);
     _radio.setChannel(RADIO_CHANNEL);
     _radio.setAddressWidth(5);
+#ifdef DEBUG
     _radio.setPALevel(RF24_PA_MIN);     // For close-proximity testing
+#else
+    _radio.setPALevel(RF24_PA_LOW);
+#endif
     _radio.openWritingPipe(RADIO_ADDRESS_INTERFACE);
     _radio.openReadingPipe(1, RADIO_ADDRESS_CONTROLLER);
     _radio.startListening();
@@ -120,93 +136,22 @@ void communicate_with_master()
     {
         message_received = true;
         _radio.read(&in_packet, PACKET_SIZE);
+#ifdef DEBUG
         Serial.println("Recieved packet:");
         print_packet(&in_packet[0]);
+#endif
         return_message = process_command(&in_packet[0]);
     }
     
     if (message_received)
     {
         construct_return_packet(return_message, &return_packet[0]);
+#ifdef DEBUG
         Serial.println("Sending packet:");
         print_packet(&return_packet[0]);
+#endif
         respond_to_master(&return_packet[0]);
     }
-}
-
-
-CommsMessage interpret_packet(const uint8_t* returned_packet, ControllerExternalStatus* controller_status)
-{
-    controller_status->state = ControllerState(returned_packet[0] >> 6);
-    
-    controller_status->channel_power[0] = returned_packet[1];
-    controller_status->channel_power[1] = returned_packet[2];
-    controller_status->channel_power[2] = returned_packet[3];
-    
-    controller_status->target_millis = returned_packet[4];
-    controller_status->target_millis <<= 8;
-    controller_status->target_millis |= returned_packet[5];
-    controller_status->target_millis <<= 8;
-    controller_status->target_millis |= returned_packet[6];
-    controller_status->target_millis <<= 8;
-    controller_status->target_millis |= returned_packet[7];
-
-    controller_status->achieved_millis = returned_packet[8];
-    controller_status->achieved_millis <<= 8;
-    controller_status->achieved_millis |= returned_packet[9];
-    controller_status->achieved_millis <<= 8;
-    controller_status->achieved_millis |= returned_packet[10];
-    controller_status->achieved_millis <<= 8;
-    controller_status->achieved_millis |= returned_packet[11];
-
-    return CommsMessage(returned_packet[0] & 0x3F);
-}
-
-
-
-void print_packet_raw(const RadioPacket* packet)
-{
-    Serial.println("RAW PACKET:");
-    for (size_t i = 0; i < PACKET_SIZE; i++)
-    {
-        Serial.print(packet[i]);
-        Serial.print(" ");
-    }
-    Serial.println();
-}
-
-
-void print_packet(const RadioPacket* packet)
-{
-    CommsMessage msg;
-    ControllerExternalStatus controller_status;
-    
-    msg = interpret_packet(packet, &controller_status);
-
-    print_packet_raw(packet);
-    Serial.println("PACKET:");
-    Serial.print("Com/Msg:  ");
-    Serial.println(_comms_command_strings[size_t(msg)]);
-    Serial.print("State:    ");
-    Serial.println(controller_status.state);
-    Serial.print("Red:      ");
-    Serial.println(controller_status.channel_power[0]);
-    Serial.print("Green:    ");
-    Serial.println(controller_status.channel_power[1]);
-    Serial.print("Blue:     ");
-    Serial.println(controller_status.channel_power[2]);
-    Serial.print("Target:   ");
-    Serial.println(controller_status.target_millis);
-    Serial.print("Achieved: ");
-    Serial.println(controller_status.achieved_millis);
-    Serial.print("Reserved: ");
-    Serial.print(packet[12]);
-    Serial.print(" ");
-    Serial.print(packet[13]);
-    Serial.print(" ");
-    Serial.print(packet[14]);
-    Serial.print(" ");
-    Serial.println(packet[15]);
 }
 
 
@@ -324,4 +269,82 @@ void process_timers()
     if (exposed_time >= _state.target_millis)
         stop_exposure();
 }
+
+
+
+
+#ifdef DEBUG
+CommsMessage interpret_packet(const uint8_t* returned_packet, ControllerExternalStatus* controller_status)
+{
+    controller_status->state = ControllerState(returned_packet[0] >> 6);
+    
+    controller_status->channel_power[0] = returned_packet[1];
+    controller_status->channel_power[1] = returned_packet[2];
+    controller_status->channel_power[2] = returned_packet[3];
+    
+    controller_status->target_millis = returned_packet[4];
+    controller_status->target_millis <<= 8;
+    controller_status->target_millis |= returned_packet[5];
+    controller_status->target_millis <<= 8;
+    controller_status->target_millis |= returned_packet[6];
+    controller_status->target_millis <<= 8;
+    controller_status->target_millis |= returned_packet[7];
+
+    controller_status->achieved_millis = returned_packet[8];
+    controller_status->achieved_millis <<= 8;
+    controller_status->achieved_millis |= returned_packet[9];
+    controller_status->achieved_millis <<= 8;
+    controller_status->achieved_millis |= returned_packet[10];
+    controller_status->achieved_millis <<= 8;
+    controller_status->achieved_millis |= returned_packet[11];
+
+    return CommsMessage(returned_packet[0] & 0x3F);
+}
+
+
+void print_packet_raw(const RadioPacket* packet)
+{
+    Serial.println("RAW PACKET:");
+    for (size_t i = 0; i < PACKET_SIZE; i++)
+    {
+        Serial.print(packet[i]);
+        Serial.print(" ");
+    }
+    Serial.println();
+}
+
+
+void print_packet(const RadioPacket* packet)
+{
+    CommsMessage msg;
+    ControllerExternalStatus controller_status;
+    
+    msg = interpret_packet(packet, &controller_status);
+
+    print_packet_raw(packet);
+    Serial.println("PACKET:");
+    Serial.print("Com/Msg:  ");
+    Serial.println(_comms_command_strings[size_t(msg)]);
+    Serial.print("State:    ");
+    Serial.println(controller_status.state);
+    Serial.print("Red:      ");
+    Serial.println(controller_status.channel_power[0]);
+    Serial.print("Green:    ");
+    Serial.println(controller_status.channel_power[1]);
+    Serial.print("Blue:     ");
+    Serial.println(controller_status.channel_power[2]);
+    Serial.print("Target:   ");
+    Serial.println(controller_status.target_millis);
+    Serial.print("Achieved: ");
+    Serial.println(controller_status.achieved_millis);
+    Serial.print("Reserved: ");
+    Serial.print(packet[12]);
+    Serial.print(" ");
+    Serial.print(packet[13]);
+    Serial.print(" ");
+    Serial.print(packet[14]);
+    Serial.print(" ");
+    Serial.println(packet[15]);
+}
+#endif
 

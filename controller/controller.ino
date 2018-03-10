@@ -198,7 +198,10 @@ CommsMessage respond_to_master(const RadioPacket* return_packet)
 {
     _radio.stopListening();
     if (!_radio.write(return_packet, PACKET_SIZE))
+    {
+        _radio.startListening();
         return MESSAGE_NO_RECEIVER;
+    }
     _radio.startListening();
 
     return MESSAGE_OK;

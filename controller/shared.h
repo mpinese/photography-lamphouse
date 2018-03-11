@@ -30,7 +30,8 @@ enum CommsCommand {
     COMMAND_REPORT_STATUS                           = 0,
     COMMAND_SET_EXPOSURE                            = 1,
     COMMAND_START_EXPOSURE                          = 2,
-    COMMAND_STOP_EXPOSURE                           = 3
+    COMMAND_STOP_EXPOSURE                           = 3,
+    COMMAND_SET_CHANNEL_POWER                       = 4
 };
 
 
@@ -44,7 +45,8 @@ const char *_comms_command_strings[] = {
     "Report status",
     "Set exposure",
     "Start exposure",
-    "Stop exposure"
+    "Stop exposure",
+    "Set channel power"
 };
 
 

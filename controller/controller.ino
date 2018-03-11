@@ -55,6 +55,8 @@ CommsMessage respond_to_master(const RadioPacket* return_packet);
 CommsMessage set_exposure(const RadioPacket* in_packet);
 CommsMessage start_exposure();
 CommsMessage stop_exposure();
+CommsMessage set_channel_power(const RadioPacket* in_packet);
+
 
 #ifdef DEBUG
 CommsMessage interpret_packet(const uint8_t* returned_packet, ControllerExternalStatus* controller_status);
@@ -162,10 +164,11 @@ CommsMessage process_command(const RadioPacket* in_packet)
     
     switch (command)
     {
-        case COMMAND_REPORT_STATUS:  return MESSAGE_OK;
-        case COMMAND_SET_EXPOSURE:   return set_exposure(in_packet);
-        case COMMAND_START_EXPOSURE: return start_exposure();
-        case COMMAND_STOP_EXPOSURE:  return stop_exposure();
+        case COMMAND_REPORT_STATUS:     return MESSAGE_OK;
+        case COMMAND_SET_EXPOSURE:      return set_exposure(in_packet);
+        case COMMAND_START_EXPOSURE:    return start_exposure();
+        case COMMAND_STOP_EXPOSURE:     return stop_exposure();
+        case COMMAND_SET_CHANNEL_POWER: return set_channel_power(in_packet);
     }
     
     return MESSAGE_INVALID_COMMAND;
@@ -213,7 +216,6 @@ CommsMessage set_exposure(const RadioPacket* in_packet)
     if (_state.state == CONTROLLER_STATE_EXPOSING)
         return MESSAGE_CANNOT_SET_EXPOSURE_WHILE_EXPOSING;
     
-    _state.channel_power[0] = in_packet[1];
     _state.channel_power[1] = in_packet[2];
     _state.channel_power[2] = in_packet[3];
     _state.target_millis = in_packet[4];
@@ -236,7 +238,6 @@ CommsMessage start_exposure()
         return MESSAGE_EXPOSURE_ALREADY_UNDERWAY;
 
     _state.state = CONTROLLER_STATE_EXPOSING;
-    analogWrite(PIN_OUT_RED, _state.channel_power[0]);
     _state.start_millis = millis();
     analogWrite(PIN_OUT_BLUE, _state.channel_power[2]);
     analogWrite(PIN_OUT_GREEN, _state.channel_power[1]);
@@ -255,7 +256,6 @@ CommsMessage stop_exposure()
     analogWrite(PIN_OUT_BLUE, 0);
     analogWrite(PIN_OUT_GREEN, 0);
     _state.end_millis = millis();
-    analogWrite(PIN_OUT_RED, 0);
 
     return MESSAGE_OK;    
 }
@@ -273,6 +273,23 @@ void process_timers()
         stop_exposure();
 }
 
+
+CommsMessage set_channel_power(const RadioPacket* in_packet)
+{
+    if (_state.state == CONTROLLER_STATE_EXPOSING)
+        return MESSAGE_CANNOT_SET_EXPOSURE_WHILE_EXPOSING;
+    
+    _state.channel_power[0] = in_packet[1];
+    _state.channel_power[1] = in_packet[2];
+    _state.channel_power[2] = in_packet[3];
+    _state.start_millis = 0;
+    _state.end_millis = 0;
+    analogWrite(PIN_OUT_RED, _state.channel_power[0]);
+    analogWrite(PIN_OUT_GREEN, _state.channel_power[1]);
+    analogWrite(PIN_OUT_BLUE, _state.channel_power[2]);
+
+    return MESSAGE_OK;   
+}
 
 
 

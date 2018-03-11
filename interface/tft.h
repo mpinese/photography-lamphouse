@@ -1,9 +1,12 @@
-
 #ifndef TFT_H_
 #define TFT_H_
 
-void TFT_calibrate(void);
-void TFT_init(void);
-void TFT_loop(void);
+void initialise_display();
+void display_draw_background(void);
+void display_calibrate_touch(void);
+void display_init(void);
+void display_loop(void);
+void display_process_touch(void);
+void display_update(void);
 
 #endif /* TFT_H_ */

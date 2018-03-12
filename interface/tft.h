@@ -2,7 +2,6 @@
 #define TFT_H_
 
 void initialise_display();
-void display_draw_background(void);
 void display_calibrate_touch(void);
 void display_init(void);
 void display_loop(void);

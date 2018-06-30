@@ -17,9 +17,9 @@
 const static uint8_t PIN_RADIO_CE = 8;
 const static uint8_t PIN_RADIO_CSN = 10;
 
-const static int PIN_OUT_GREEN = 3;
-const static int PIN_OUT_BLUE = 6;
-const static int PIN_OUT_RED = 9;
+const static int PIN_OUT_GREEN = 3;     // D3
+const static int PIN_OUT_BLUE = 6;      // D6
+const static int PIN_OUT_RED = 9;       // D9
 
 
 struct ControllerInternalStatus
@@ -228,7 +228,7 @@ CommsMessage set_exposure(const RadioPacket* in_packet)
     _state.start_millis = 0;
     _state.end_millis = 0;
 
-    return MESSAGE_OK;   
+    return MESSAGE_OK;
 }
 
 

@@ -16,7 +16,8 @@ void initialise_radio();
 
 CommsMessage communicate_with_slave(const RadioPacket* out_packet, RadioPacket* returned_packet);
 CommsMessage interpret_return_packet(const uint8_t* returned_packet, ControllerExternalStatus* controller_status);
-CommsMessage set_controller_exposure(uint8_t red_power, uint8_t green_power, uint8_t blue_power, uint32_t target_millis);
+CommsMessage set_controller_exposure(uint8_t green_power, uint8_t blue_power, uint32_t target_millis);
+CommsMessage set_channel_power(uint8_t red_power, uint8_t green_power, uint8_t blue_power);
 CommsMessage send_command(CommsCommand command, ControllerExternalStatus* controller_status);
 CommsMessage start_exposure();
 CommsMessage stop_exposure();

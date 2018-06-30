@@ -105,14 +105,14 @@ CommsMessage interpret_return_packet(const uint8_t* returned_packet, ControllerE
 }
 
 
-CommsMessage set_controller_exposure(uint8_t red_power, uint8_t green_power, uint8_t blue_power, uint32_t target_millis)
+CommsMessage set_controller_exposure(uint8_t green_power, uint8_t blue_power, uint32_t target_millis)
 {
     CommsMessage comms_message;
     RadioPacket out_packet[PACKET_SIZE], returned_packet[PACKET_SIZE];
     ControllerExternalStatus controller_status;
 
     out_packet[0] = uint8_t(COMMAND_SET_EXPOSURE);
-    out_packet[1] = red_power;
+    out_packet[1] = 0;
     out_packet[2] = green_power;
     out_packet[3] = blue_power;
     out_packet[4] = target_millis >> 32;
@@ -131,14 +131,48 @@ CommsMessage set_controller_exposure(uint8_t red_power, uint8_t green_power, uin
         return comms_message;
 
 #ifdef DEBUG
-    print_paired_status(red_power, green_power, blue_power, target_millis, &controller_status);
+    print_paired_status(0, green_power, blue_power, target_millis, &controller_status);
 #endif
+
+    if (
+        controller_status.channel_power[1] == green_power &&
+        controller_status.channel_power[2] == blue_power &&
+        controller_status.target_millis == target_millis)
+        return MESSAGE_OK;
+
+    return MESSAGE_SET_FAILED;
+}
+
+
+CommsMessage set_channel_power(uint8_t red_power, uint8_t green_power, uint8_t blue_power)
+{
+    CommsMessage comms_message;
+    RadioPacket out_packet[PACKET_SIZE], returned_packet[PACKET_SIZE];
+    ControllerExternalStatus controller_status;
+
+    out_packet[0] = uint8_t(COMMAND_SET_CHANNEL_POWER);
+    out_packet[1] = red_power;
+    out_packet[2] = green_power;
+    out_packet[3] = blue_power;
+    out_packet[4] = 0;
+    out_packet[5] = 0;
+    out_packet[6] = 0;
+    out_packet[7] = 0;
+
+    comms_message = communicate_with_slave(&out_packet[0], &returned_packet[0]);
+
+    if (comms_message != MESSAGE_OK)
+        return comms_message;
+
+    comms_message = interpret_return_packet(&returned_packet[0], &controller_status);
+
+    if (comms_message != MESSAGE_OK)
+        return comms_message;
     
     if (
         controller_status.channel_power[0] == red_power &&
         controller_status.channel_power[1] == green_power &&
-        controller_status.channel_power[2] == blue_power &&
-        controller_status.target_millis == target_millis)
+        controller_status.channel_power[2] == blue_power)
         return MESSAGE_OK;
 
     return MESSAGE_SET_FAILED;

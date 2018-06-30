@@ -3,6 +3,7 @@
 
 #include <stdint.h>
 
+//#define DEBUG
 
 enum ControllerState {
     CONTROLLER_STATE_NOT_EXPOSING                   = 0,
@@ -30,6 +31,12 @@ enum CommsCommand {
     COMMAND_START_EXPOSURE                          = 2,
     COMMAND_STOP_EXPOSURE                           = 3,
     COMMAND_SET_CHANNEL_POWER                       = 4
+};
+
+
+struct InterfaceStatus
+{
+    bool is_controller_connected;
 };
 
 

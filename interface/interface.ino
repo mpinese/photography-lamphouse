@@ -76,6 +76,6 @@ void radio_loop()
     if (_interface_status.is_controller_connected == true)
         controller_connection_watchdog = tick + 200;
     else
-        controller_connection_watchdog = tick + 5000;
+        controller_connection_watchdog = tick + 1000;
 }
 

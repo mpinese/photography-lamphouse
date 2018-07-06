@@ -3,7 +3,6 @@
 
 #include <stdint.h>
 
-//#define DEBUG
 
 enum ControllerState {
     CONTROLLER_STATE_NOT_EXPOSING                   = 0,
@@ -66,8 +65,8 @@ typedef uint8_t RadioPacket;
  * RadioPacket[11]  -+
  * RadioPacket[12]  -+
  * RadioPacket[13]   |-- Reserved
- * RadioPacket[14]   |
- * RadioPacket[15]  -+
+ * RadioPacket[14]  -+
+ * RadioPacket[15]  -- Packet counter
  */
 
 #endif

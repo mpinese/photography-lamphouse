@@ -8,7 +8,6 @@
 const static uint8_t PIN_RADIO_CE = PA15;
 const static uint8_t PIN_RADIO_CSN = PC15;
 
-
 static RF24 _radio(PIN_RADIO_CE, PIN_RADIO_CSN);
 
 
@@ -40,14 +39,21 @@ void initialise_radio()
 
 CommsMessage communicate_with_slave(const RadioPacket* out_packet, RadioPacket* returned_packet)
 {
+    static uint8_t packet_counter = 0;
+
+    RadioPacket out_packet_copy[PACKET_SIZE];
+    RadioPacket* out_packet_copy_ptr = &out_packet_copy[0];
+    memcpy(out_packet_copy_ptr, out_packet, sizeof(out_packet_copy));
+    out_packet_copy[15] = packet_counter++;
+    
     _radio.stopListening();
 
 #ifdef DEBUG
     Serial.println("Interface: Sending packet:");
-    print_packet(out_packet);
+    print_packet(out_packet_copy_ptr);
 #endif
 
-    if (!_radio.write(out_packet, PACKET_SIZE))
+    if (!_radio.write(out_packet_copy_ptr, PACKET_SIZE))
         return MESSAGE_NO_RECEIVER;
 
     _radio.startListening();

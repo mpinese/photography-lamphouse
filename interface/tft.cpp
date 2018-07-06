@@ -71,7 +71,7 @@ void initialise_display()
     pinMode(FT8_PDN, OUTPUT);
 
     SPI_2.begin(); /* sets up the SPI to run in Mode 0 and 1 MHz */
-    //SPI_2.setClockDivider(SPI_CLOCK_DIV2);
+    SPI_2.setClockDivider(SPI_CLOCK_DIV32);
 
     FT8_init();
     FT8_cmd_setrotate(2);
@@ -128,17 +128,17 @@ void display_process_touch_buttons()
 
     switch(tag)
     {
-        case 1:
+        case 1:     // HC/LC toggle
             if (!_display_state.on)
                 _display_state.hc = !_display_state.hc;
             break;
-        case 2:
+        case 2:     // Red channel toggle
             if (!_interface_status.is_controller_connected)
                 break;
             if (set_channel_power(_display_state.red ? 0 : 255, 0, 0) == MESSAGE_OK)
                 _display_state.red = !_display_state.red;
             break;
-        case 3:
+        case 3:     // Start/Stop
             if (!_interface_status.is_controller_connected)
                 break;
             if (_display_state.on)
@@ -164,7 +164,7 @@ void display_process_touch_buttons()
                 _display_state.on = true;
             }
             break;
-        case 4:
+        case 4:     // Reset
             if (!_display_state.on)
             {
                 uint16_t& set_time_ref = _display_state.hc ? _display_state.set_time_hc : _display_state.set_time_lc;
@@ -261,8 +261,8 @@ void query_controller_state()
         // Update the interface state to match the controller
         _display_state.on = controller_status.state == CONTROLLER_STATE_EXPOSING;
 
-        if (!_display_state.on && !_display_state.red)
-            set_channel_power(0, 0, 0);
+        if (!_display_state.on)
+            set_channel_power(_display_state.red ? 255 : 0, 0, 0);  // We've just transitioned from ON to OFF.  Set the red channel to the last value.
     }
 }
 
@@ -308,10 +308,11 @@ void display_update()
 
     char buf[32];
     uint16_t& set_time_ref = _display_state.hc ? _display_state.set_time_hc : _display_state.set_time_lc;
+    uint16_t& current_time_ref = _display_state.hc ? _display_state.current_time_hc : _display_state.current_time_lc;
 
     FT8_cmd_dl(DL_COLOR_RGB | RED);
     FT8_cmd_romfont(1, 34);
-    sprintf(&buf[0], "% 2d.%01d", (set_time_ref >> 6) / 10, (set_time_ref >> 6) % 10);
+    sprintf(&buf[0], "% 2d.%01d/% 2d.%01d", (current_time_ref >> 6) / 10, (current_time_ref >> 6) % 10, (set_time_ref >> 6) / 10, (set_time_ref >> 6) % 10);
     FT8_cmd_text(350, 160, 1, FT8_OPT_RIGHTX, &buf[0]);
 
     sprintf(&buf[0], "%d.%1d / %d.%d", (_display_state.current_time_lc >> 6) / 10, (_display_state.current_time_lc >> 6) % 10, (_display_state.set_time_lc >> 6) / 10, (_display_state.set_time_lc >> 6) % 10);

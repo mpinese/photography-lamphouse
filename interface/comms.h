@@ -2,6 +2,7 @@
 
 #include "shared.h"
 
+#undef DEBUG
 
 struct ControllerExternalStatus
 {

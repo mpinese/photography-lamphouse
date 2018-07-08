@@ -43,6 +43,10 @@ extern const uint8_t RADIO_ADDRESS_CONTROLLER[5];
 extern const uint8_t RADIO_ADDRESS_INTERFACE[5];
 extern const uint8_t RADIO_CHANNEL;
 
+extern const uint8_t CHANNEL_POWER_SAFE;
+extern const uint8_t CHANNEL_POWER_HC;
+extern const uint8_t CHANNEL_POWER_LC;
+
 extern const char *_comms_controller_state_strings[];
 extern const char *_comms_command_strings[];
 extern const char *_comms_status_strings[];

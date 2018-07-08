@@ -5,6 +5,11 @@ const uint8_t RADIO_ADDRESS_INTERFACE[5] =  { 0x6C, 0x28, 0xA4, 0x88, 0x44 };
 const uint8_t RADIO_CHANNEL = 80;
 const uint8_t PACKET_SIZE = 16;
 
+const uint8_t CHANNEL_POWER_SAFE = 255;
+const uint8_t CHANNEL_POWER_LC = 255;
+const uint8_t CHANNEL_POWER_HC = 63;
+
+
 const char *_comms_controller_state_strings[] = {
     "Not exposing",
     "Exposing"

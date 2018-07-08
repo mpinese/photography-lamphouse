@@ -1,32 +1,3 @@
-/*
-@file    tft.c
-@brief   TFT handling functions for FT8xx_Test project, the layout is for 800x480 displays
-@version 1.3
-@date    2017-04-02
-@author  Rudolph Riedel
-
-@section History
-
-1.0
-- initial release
-
-1.1
-- added a simple .png image that is drawn beneath the clock just as example of how it could be done 
-
-1.2
-- replaced the clock with a scrolling line-strip
-- moved the .png image over to the font-test section to make room
-- added a scrolling bar display
-- made scrolling depending on the state of the on/off button
-- reduced the precision of VERTEX2F to 1 Pixel with VERTEXT_FORMAT() (FT81x only) to avoid some pointless "*16" multiplications
-
-1.3
-- adapted to release 3 of Ft8xx library with FT8_ and ft_ prefixes changed to FT8_
-- removed "while (FT8_busy());" lines after FT8_cmd_execute() since it does that by itself now
-- removed "FT8_cmd_execute();" line after FT8_cmd_loadimage(MEM_PIC1, FT8_OPT_NODL, pngpic, pngpic_size); as FT8_cmd_loadimage() executes itself now
-
- */ 
-
 #include "tft.h"
 
 #include "FT8_config.h"
@@ -43,18 +14,19 @@ struct DisplayState
 {
     bool hc, red, on;
     uint16_t dial_angle;
-    uint16_t set_time_lc, set_time_hc, current_time_lc, current_time_hc;
+    uint16_t set_time_lc, set_time_hc, current_time_lc, current_time_hc, start_time_lc, start_time_hc;
 };
 
 
 SPIClass SPI_2(2);
 DisplayState _display_state;
 
-// Defined in interface
+
+// Defined in interface.ino
 extern InterfaceStatus _interface_status;
 
 
-void initialise_display()
+void display_init()
 {
     _display_state.hc = false;
     _display_state.red = false;
@@ -64,6 +36,8 @@ void initialise_display()
     _display_state.set_time_hc = 0;
     _display_state.current_time_lc = 0;
     _display_state.current_time_hc = 0;
+    _display_state.start_time_lc = 0;
+    _display_state.start_time_hc = 0;
     
     digitalWrite(FT8_CS, HIGH);
     pinMode(FT8_CS, OUTPUT);
@@ -75,10 +49,9 @@ void initialise_display()
 
     FT8_init();
     FT8_cmd_setrotate(2);
-    FT8_cmd_track(480/2, 800/2+25, 1, 1, TAG(5));
+    FT8_cmd_track(480/2, 800/2+25, 1, 1, TAG(5));       // Register tracking for the spinner
     FT8_cmd_execute();
 
-//    FT8_memWrite8(REG_PWM_DUTY, 5);  // Dim backlight for darkroom use
 //    display_calibrate_touch();
 
     /* send pre-recorded touch calibration values, RVT70, rotation 0 */
@@ -97,17 +70,16 @@ void initialise_display()
     FT8_memWrite32(REG_TOUCH_TRANSFORM_E, 0x00000396);
     FT8_memWrite32(REG_TOUCH_TRANSFORM_F, 0xffe44224);
 
-//#ifdef DEBUG
-//    FT8_memWrite8(REG_PWM_DUTY, 30);    // Bright backlight for testing
-//#else
-    FT8_memWrite8(REG_PWM_DUTY, 5);  // Dim backlight for darkroom use
-//#endif
+#ifdef DEBUG
+    FT8_memWrite8(REG_PWM_DUTY, 30);    // Bright backlight for testing
+#else
+    FT8_memWrite8(REG_PWM_DUTY, 5);     // Dim backlight for darkroom use
+#endif
 }
 
 
 void display_process_touch()
 {
-    query_controller_state();
     display_process_touch_buttons();
     display_process_touch_dial();
 }
@@ -115,6 +87,8 @@ void display_process_touch()
 
 void display_process_touch_buttons()
 {
+    // TODO: beep
+    
     static uint32_t last_processed_touch_millis = 0;
 
     // Rudimentary debouncing.
@@ -135,7 +109,7 @@ void display_process_touch_buttons()
         case 2:     // Red channel toggle
             if (!_interface_status.is_controller_connected)
                 break;
-            if (set_channel_power(_display_state.red ? 0 : 255, 0, 0) == MESSAGE_OK)
+            if (set_channel_power(_display_state.red ? 0 : CHANNEL_POWER_SAFE, 0, 0) == MESSAGE_OK)
                 _display_state.red = !_display_state.red;
             break;
         case 3:     // Start/Stop
@@ -148,16 +122,35 @@ void display_process_touch_buttons()
             }
             else
             {
-                // (_display_state.current_time_lc >> 6) / 10 is time in seconds
-                // => _display_state.current_time_lc*1.5625 is time in ms
+                // Send the time to the controller, and start the exposure.
+                // We need to convert the time in _display_state to ms for use by the controller.
+                // _display_state.current_time_lc*1.5625 is time in ms
                 // 1.5625 is 25/16
+                // 
+                // However, the display only has a resolution of 100 ms, even though the internal
+                // state has a much higher resolution.  Round the internal state value to match the
+                // displayed one, so that the exposure time is exactly what's shown on the display.
+                //
+                // To do this conversion:
+                // time_s = (current_time >> 6) / 10
+                // time_ds = (current_time >> 6) % 10
+                // time_ms = time_s*1000 + time_ds*100
                 uint16_t& set_time_ref = _display_state.hc ? _display_state.set_time_hc : _display_state.set_time_lc;
-                if (set_time_ref == 0)
+                uint16_t& current_time_ref = _display_state.hc ? _display_state.current_time_hc : _display_state.current_time_lc;
+                uint16_t& start_time_ref = _display_state.hc ? _display_state.start_time_hc : _display_state.start_time_lc;
+                
+                if (set_time_ref <= current_time_ref)
                     break;
                 
-                uint32_t target_millis = (uint32_t(set_time_ref)*25) >> 4;
-                set_channel_power(255, 0, 0);
-                if (set_controller_exposure(_display_state.hc ? 0 : 255, _display_state.hc ? 255 : 0, target_millis) != MESSAGE_OK)
+                start_time_ref = current_time_ref;
+                uint8_t time_s = ((set_time_ref - current_time_ref) >> 6) / 10;
+                uint8_t time_ds = ((set_time_ref - current_time_ref) >> 6) % 10;
+                uint32_t target_millis = uint32_t(time_s)*1000 + uint32_t(time_ds)*100;
+                // Old code (kept fractional time not shown on the rounded display):
+                // uint32_t target_millis = (uint32_t(set_time_ref - current_time_ref)*25) >> 4;
+
+                set_channel_power(_display_state.red ? CHANNEL_POWER_SAFE : 0, 0, 0);
+                if (set_controller_exposure(_display_state.hc ? 0 : CHANNEL_POWER_LC, _display_state.hc ? CHANNEL_POWER_HC : 0, target_millis) != MESSAGE_OK)
                     break;
                 if (start_exposure() != MESSAGE_OK)
                     break;
@@ -169,7 +162,9 @@ void display_process_touch_buttons()
             {
                 uint16_t& set_time_ref = _display_state.hc ? _display_state.set_time_hc : _display_state.set_time_lc;
                 uint16_t& current_time_ref = _display_state.hc ? _display_state.current_time_hc : _display_state.current_time_lc;
+                uint16_t& start_time_ref = _display_state.hc ? _display_state.start_time_hc : _display_state.start_time_lc;
 
+                start_time_ref = 0;
                 if (current_time_ref == 0)
                     set_time_ref = 0;
                 else
@@ -239,30 +234,34 @@ void display_process_touch_dial()
 }
 
 
-void query_controller_state()
+void display_query_controller_state()
 {
-    if (!_interface_status.is_controller_connected)
-        return;
-
     ControllerExternalStatus controller_status;
+    CommsMessage comms_status;
 
-    if (send_command(COMMAND_REPORT_STATUS, &controller_status) != MESSAGE_OK)
+    comms_status = send_command(COMMAND_REPORT_STATUS, &controller_status);
+
+    _interface_status.is_controller_connected = comms_status == MESSAGE_OK;
+    
+    if (comms_status != MESSAGE_OK)
         return;
+
+    // TODO: synchronise with controller state when connection lost
 
     if (_display_state.on)
     {
         // Either exposure is in progress, or exposure has just completed.  Either way assign the achieved_millis to the relevant achieved time variable.
         uint16_t achieved_time = uint16_t((controller_status.achieved_millis << 4) / 25);
-        if (_display_state.hc)
-            _display_state.current_time_hc = achieved_time;
-        else
-            _display_state.current_time_lc = achieved_time;
+        uint16_t& current_time_ref = _display_state.hc ? _display_state.current_time_hc : _display_state.current_time_lc;
+        uint16_t& start_time_ref = _display_state.hc ? _display_state.start_time_hc : _display_state.start_time_lc;
+
+        current_time_ref = achieved_time + start_time_ref;
 
         // Update the interface state to match the controller
         _display_state.on = controller_status.state == CONTROLLER_STATE_EXPOSING;
 
         if (!_display_state.on)
-            set_channel_power(_display_state.red ? 255 : 0, 0, 0);  // We've just transitioned from ON to OFF.  Set the red channel to the last value.
+            set_channel_power(_display_state.red ? CHANNEL_POWER_SAFE : 0, 0, 0);  // We've just transitioned from ON to OFF.  Set the red channel to the last value.
     }
 }
 
@@ -312,10 +311,10 @@ void display_update()
 
     FT8_cmd_dl(DL_COLOR_RGB | RED);
     FT8_cmd_romfont(1, 34);
-    sprintf(&buf[0], "% 2d.%01d/% 2d.%01d", (current_time_ref >> 6) / 10, (current_time_ref >> 6) % 10, (set_time_ref >> 6) / 10, (set_time_ref >> 6) % 10);
-    FT8_cmd_text(350, 160, 1, FT8_OPT_RIGHTX, &buf[0]);
+    sprintf(&buf[0], "% 2d.%d/% 2d.%d", (current_time_ref >> 6) / 10, (current_time_ref >> 6) % 10, (set_time_ref >> 6) / 10, (set_time_ref >> 6) % 10);
+    FT8_cmd_text(30, 160, 1, 0, &buf[0]);
 
-    sprintf(&buf[0], "%d.%1d / %d.%d", (_display_state.current_time_lc >> 6) / 10, (_display_state.current_time_lc >> 6) % 10, (_display_state.set_time_lc >> 6) / 10, (_display_state.set_time_lc >> 6) % 10);
+    sprintf(&buf[0], "%d.%d / %d.%d", (_display_state.current_time_lc >> 6) / 10, (_display_state.current_time_lc >> 6) % 10, (_display_state.set_time_lc >> 6) / 10, (_display_state.set_time_lc >> 6) % 10);
     FT8_cmd_text(30, 590, 29, 0, "LC");
     FT8_cmd_text(75, 590, 29, 0, &buf[0]);
     sprintf(&buf[0], "%d.%d / %d.%d", (_display_state.current_time_hc >> 6) / 10, (_display_state.current_time_hc >> 6) % 10, (_display_state.set_time_hc >> 6) / 10, (_display_state.set_time_hc >> 6) % 10);

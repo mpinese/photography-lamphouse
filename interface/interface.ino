@@ -23,7 +23,7 @@ void setup()
     _interface_status.is_controller_connected = false;
     
     initialise_radio();
-    initialise_display();
+    display_init();
 
 #ifdef DEBUG
     Serial.println("Interface: Init done");
@@ -33,49 +33,37 @@ void setup()
 
 void loop()
 {
-    radio_loop();
     display_loop();
 }
 
 
 void display_loop(void)
 {
-    static uint32_t display_update_watchdog = 0;
-    static bool mode = false;
+    static uint32_t display_next_update = 0;
+    static uint8_t mode = 0;
     uint32_t tick = millis();
 
-    if (tick < display_update_watchdog)
+    if (tick < display_next_update)
         return;
 
-    if (mode)
+    //  Mode    Action
+    //  0       Radio query
+    //  1       Display update
+    //  2       Touch
+    //  3       Display update
+    //  4       Touch
+
+    if (mode == 0)
+        display_query_controller_state();
+    else if (mode % 2 == 0)
         display_process_touch();
     else
         display_update();
 
-    mode = !mode;
-    display_update_watchdog = tick + 20;        // 20 ms between calls, so 40 ms between display refreshes (25 Hz)
-}
-
-
-void radio_loop()
-{
-    static uint32_t controller_connection_watchdog = 0;
-
-    uint32_t tick = millis();
-
-    if (tick < controller_connection_watchdog)
-        return;
-
-    ControllerExternalStatus controller_interface_status;
-    CommsMessage comms_interface_status;
-
-    comms_interface_status = send_command(COMMAND_REPORT_STATUS, &controller_interface_status);
-
-    _interface_status.is_controller_connected = comms_interface_status == MESSAGE_OK;
-
-    if (_interface_status.is_controller_connected == true)
-        controller_connection_watchdog = tick + 200;
-    else
-        controller_connection_watchdog = tick + 1000;
+    mode++;
+    if (mode == 5)
+        mode = 0;
+    
+    display_next_update = tick + 20;    // Display refreshes at 25 Hz (as display loop at 50 Hz, and only half of the calls result in a display refresh)
 }
 

@@ -73,7 +73,7 @@ void display_init()
 #ifdef DEBUG
     FT8_memWrite8(REG_PWM_DUTY, 30);    // Bright backlight for testing
 #else
-    FT8_memWrite8(REG_PWM_DUTY, 2);     // Dim backlight for darkroom use
+    FT8_memWrite8(REG_PWM_DUTY, 1);     // Dim backlight for darkroom use
 #endif
 }
 

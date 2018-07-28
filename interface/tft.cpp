@@ -8,6 +8,9 @@
 #include "shared.h"
 
 
+#define DEBUG
+
+
 #define DARKRED   0x00400000
 
 struct DisplayState
@@ -15,6 +18,7 @@ struct DisplayState
     bool hc, red, on;
     uint16_t dial_angle;
     uint16_t set_time_lc, set_time_hc, current_time_lc, current_time_hc, start_time_lc, start_time_hc;
+    uint8_t power_lc, power_hc;
 };
 
 
@@ -38,6 +42,8 @@ void display_init()
     _display_state.current_time_hc = 0;
     _display_state.start_time_lc = 0;
     _display_state.start_time_hc = 0;
+    _display_state.power_lc = 255;
+    _display_state.power_hc = 255;
     
     digitalWrite(FT8_CS, HIGH);
     pinMode(FT8_CS, OUTPUT);
@@ -49,7 +55,7 @@ void display_init()
 
     FT8_init();
     FT8_cmd_setrotate(2);
-    FT8_cmd_track(480/2, 800/2+25, 1, 1, TAG(5));       // Register tracking for the spinner
+    FT8_cmd_track(480/2, 800/2-10, 1, 1, TAG(5));       // Register tracking for the spinner
     FT8_cmd_execute();
 
 //    display_calibrate_touch();
@@ -100,6 +106,11 @@ void display_process_touch_buttons()
     if (tag >= 1 && tag <= 4)
         last_processed_touch_millis = millis();
 
+    uint16_t& set_time_ref = _display_state.hc ? _display_state.set_time_hc : _display_state.set_time_lc;
+    uint16_t& current_time_ref = _display_state.hc ? _display_state.current_time_hc : _display_state.current_time_lc;
+    uint16_t& start_time_ref = _display_state.hc ? _display_state.start_time_hc : _display_state.start_time_lc;
+    uint8_t& power_ref = _display_state.hc ? _display_state.power_hc : _display_state.power_lc;
+
     switch(tag)
     {
         case 1:     // HC/LC toggle
@@ -135,9 +146,6 @@ void display_process_touch_buttons()
                 // time_s = (current_time >> 6) / 10
                 // time_ds = (current_time >> 6) % 10
                 // time_ms = time_s*1000 + time_ds*100
-                uint16_t& set_time_ref = _display_state.hc ? _display_state.set_time_hc : _display_state.set_time_lc;
-                uint16_t& current_time_ref = _display_state.hc ? _display_state.current_time_hc : _display_state.current_time_lc;
-                uint16_t& start_time_ref = _display_state.hc ? _display_state.start_time_hc : _display_state.start_time_lc;
                 
                 if (set_time_ref <= current_time_ref)
                     break;
@@ -150,7 +158,7 @@ void display_process_touch_buttons()
                 // uint32_t target_millis = (uint32_t(set_time_ref - current_time_ref)*25) >> 4;
 
                 set_channel_power(_display_state.red ? CHANNEL_POWER_SAFE : 0, 0, 0);
-                if (set_controller_exposure(_display_state.hc ? 0 : CHANNEL_POWER_LC, _display_state.hc ? CHANNEL_POWER_HC : 0, target_millis) != MESSAGE_OK)
+                if (set_controller_exposure(_display_state.hc ? 0 : _display_state.power_lc, _display_state.hc ? _display_state.power_hc : 0, target_millis) != MESSAGE_OK)
                     break;
                 if (start_exposure() != MESSAGE_OK)
                     break;
@@ -160,10 +168,6 @@ void display_process_touch_buttons()
         case 4:     // Reset
             if (!_display_state.on)
             {
-                uint16_t& set_time_ref = _display_state.hc ? _display_state.set_time_hc : _display_state.set_time_lc;
-                uint16_t& current_time_ref = _display_state.hc ? _display_state.current_time_hc : _display_state.current_time_lc;
-                uint16_t& start_time_ref = _display_state.hc ? _display_state.start_time_hc : _display_state.start_time_lc;
-
                 start_time_ref = 0;
                 if (current_time_ref == 0)
                     set_time_ref = 0;
@@ -171,6 +175,14 @@ void display_process_touch_buttons()
                     current_time_ref = 0;
             }
             break;
+        // Power buttons:
+        case '6': power_ref = 4; break;
+        case '5': power_ref = 8; break;
+        case '4': power_ref = 16; break;
+        case '3': power_ref = 32; break;
+        case '2': power_ref = 64; break;
+        case '1': power_ref = 128; break;
+        case '0': power_ref = 255; break;
     }
 }
 
@@ -303,11 +315,29 @@ void display_update()
     FT8_cmd_dl(TAG(5));
     FT8_cmd_dl(DL_COLOR_RGB | RED);
     FT8_cmd_fgcolor(DARKRED);
-    FT8_cmd_dial(480/2, 800/2+25, 140, FT8_OPT_FLAT, _display_state.dial_angle);
+    FT8_cmd_dial(480/2, 800/2-10, 120, FT8_OPT_FLAT, _display_state.dial_angle);
 
     char buf[32];
     uint16_t& set_time_ref = _display_state.hc ? _display_state.set_time_hc : _display_state.set_time_lc;
     uint16_t& current_time_ref = _display_state.hc ? _display_state.current_time_hc : _display_state.current_time_lc;
+    uint16_t& start_time_ref = _display_state.hc ? _display_state.start_time_hc : _display_state.start_time_lc;
+    uint8_t& power_ref = _display_state.hc ? _display_state.power_hc : _display_state.power_lc;
+
+    uint16_t key_pressed;
+    switch (power_ref)
+    {
+        case 4: key_pressed = '6'; break;
+        case 8: key_pressed = '5'; break;
+        case 16: key_pressed = '4'; break;
+        case 32: key_pressed = '3'; break;
+        case 64: key_pressed = '2'; break;
+        case 128: key_pressed = '1'; break;
+        case 255: key_pressed = '0'; break;
+    }
+
+    FT8_cmd_dl(DL_COLOR_RGB | RED);
+    FT8_cmd_bgcolor(RED);
+    FT8_cmd_keys(15, 800/2+130, 480-30, 50, 30, key_pressed | FT8_OPT_FLAT, "6543210");
 
     FT8_cmd_dl(DL_COLOR_RGB | RED);
     FT8_cmd_romfont(1, 34);

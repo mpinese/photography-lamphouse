@@ -6,8 +6,6 @@ const uint8_t RADIO_CHANNEL = 80;
 const uint8_t PACKET_SIZE = 16;
 
 const uint8_t CHANNEL_POWER_SAFE = 255;
-const uint8_t CHANNEL_POWER_LC = 255;
-const uint8_t CHANNEL_POWER_HC = 63;
 
 
 const char *_comms_controller_state_strings[] = {
